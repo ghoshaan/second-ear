@@ -1,0 +1,766 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>ATC Transcript Search</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Fraunces:opsz,wght@9..144,300;9..144,600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0b0e0c;
+    --panel:     #141a17;
+    --line:      #1f2a23;
+    --line-2:    #2a3a30;
+    --ink:       #d6e3da;
+    --ink-dim:   #7a8a80;
+    --ink-faint: #4b574f;
+    --amber:     #ffb347;
+    --red:       #e57373;
+    --pilot:     #6fcf97;
+    --atc:       #ffb347;
+    --hl-bg:     #3d2a07;
+    --hl-fg:     #ffd084;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at top, rgba(255,179,71,0.04), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 3px);
+  }
+
+  /* ------ Lock screen ------ */
+  .lock {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .lock-card {
+    width: 100%;
+    max-width: 420px;
+    border: 1px solid var(--line-2);
+    background: var(--panel);
+    padding: 36px 32px;
+  }
+  .lock-glyph {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 56px;
+    color: var(--amber);
+    line-height: 1;
+    margin-bottom: 18px;
+  }
+  .lock-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: 22px;
+    margin: 0 0 6px;
+  }
+  .lock-title em { font-style: italic; color: var(--amber); font-weight: 600; }
+  .lock-sub {
+    color: var(--ink-dim);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    margin-bottom: 24px;
+  }
+  .lock-form { display: flex; flex-direction: column; gap: 10px; }
+  .lock-form input {
+    background: var(--bg);
+    border: 1px solid var(--line-2);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 12px 14px;
+    outline: none;
+    border-radius: 0;
+  }
+  .lock-form input:focus { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+  .lock-form button {
+    background: var(--amber);
+    color: var(--bg);
+    border: 1px solid var(--amber);
+    font-family: inherit;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    padding: 12px;
+    cursor: pointer;
+    font-weight: 700;
+  }
+  .lock-form button:disabled { opacity: 0.5; cursor: progress; }
+  .lock-error {
+    color: var(--red);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    min-height: 14px;
+    margin-top: 4px;
+  }
+  .lock-foot {
+    color: var(--ink-faint);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+  }
+
+  /* ------ App (post-unlock) ------ */
+  .app { display: none; }
+  .app.unlocked { display: block; }
+
+  header {
+    border-bottom: 1px solid var(--line);
+    padding: 28px 32px 22px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: 28px;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  h1 em { font-style: italic; color: var(--amber); font-weight: 600; }
+  .meta {
+    display: flex;
+    gap: 24px;
+    font-size: 11px;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    align-items: center;
+  }
+  .meta b { color: var(--ink); font-weight: 500; letter-spacing: 0; text-transform: none; }
+  .lock-out {
+    color: var(--ink-faint);
+    background: transparent;
+    border: 1px solid var(--line-2);
+    font-family: inherit;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .lock-out:hover { color: var(--amber); border-color: var(--amber); }
+
+  .search-wrap {
+    padding: 24px 32px 12px;
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+  .search-row { display: flex; gap: 12px; align-items: center; }
+  .search-input {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--line-2);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 15px;
+    padding: 12px 16px;
+    outline: none;
+    border-radius: 0;
+    transition: border-color 0.15s;
+  }
+  .search-input::placeholder { color: var(--ink-faint); }
+  .search-input:focus { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+
+  .pill {
+    border: 1px solid var(--line-2);
+    color: var(--ink-dim);
+    padding: 6px 12px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    cursor: pointer;
+    user-select: none;
+    background: transparent;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .pill:hover { color: var(--ink); border-color: var(--ink-dim); }
+  .pill.active { color: var(--bg); background: var(--amber); border-color: var(--amber); }
+
+  .filters {
+    display: flex;
+    gap: 14px;
+    margin-top: 14px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .filters .group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .filters .sep {
+    color: var(--ink-faint);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .facet-select {
+    background: var(--panel);
+    color: var(--ink);
+    border: 1px solid var(--line-2);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 0;
+    cursor: pointer;
+    min-width: 110px;
+  }
+  .facet-select:focus { outline: none; border-color: var(--amber); }
+  .facet-clear {
+    background: transparent;
+    border: none;
+    color: var(--ink-faint);
+    font-size: 14px;
+    padding: 0 4px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .facet-clear:hover { color: var(--amber); }
+
+  .status {
+    padding: 10px 32px;
+    font-size: 11px;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .status .blink::after {
+    content: '_';
+    animation: blink 1.1s steps(2) infinite;
+    color: var(--amber);
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  main { padding: 8px 0 80px; }
+
+  .result {
+    border-bottom: 1px solid var(--line);
+    padding: 18px 32px;
+    transition: background 0.1s;
+  }
+  .result:hover { background: rgba(255,179,71,0.025); }
+
+  .result-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .result-key { color: var(--ink); font-size: 13px; font-weight: 500; word-break: break-all; }
+  .result-tags {
+    display: flex;
+    gap: 8px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ink-faint);
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .tag { padding: 2px 8px; border: 1px solid var(--line-2); }
+  .tag-role.pilot { color: var(--pilot); border-color: rgba(111,207,151,0.3); }
+  .tag-role.atc   { color: var(--atc); border-color: rgba(255,179,71,0.3); }
+  .tag-facet { color: var(--ink-dim); }
+  .tag-dur { color: var(--ink-dim); border: none; padding-left: 4px; }
+
+  .segments { display: grid; gap: 4px; margin-top: 8px; }
+  .seg {
+    display: grid;
+    grid-template-columns: 56px 48px 1fr;
+    gap: 12px;
+    align-items: baseline;
+    padding: 4px 0;
+  }
+  .seg-time { color: var(--ink-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .seg-role { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; }
+  .seg-role.pilot { color: var(--pilot); }
+  .seg-role.atc { color: var(--atc); }
+  .seg-role.unknown { color: var(--ink-faint); }
+  .seg-text { color: var(--ink); }
+  .seg-text mark, .result-key mark {
+    background: var(--hl-bg);
+    color: var(--hl-fg);
+    padding: 0 2px;
+    border-radius: 1px;
+  }
+
+  .empty { padding: 80px 32px; text-align: center; color: var(--ink-faint); }
+  .empty .glyph {
+    font-family: 'Fraunces', serif;
+    font-size: 64px;
+    font-style: italic;
+    color: var(--line-2);
+    margin-bottom: 12px;
+  }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 16px 32px;
+    font-size: 10px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    text-align: center;
+  }
+
+  @media (max-width: 640px) {
+    header, .search-wrap, .status, .result, footer { padding-left: 16px; padding-right: 16px; }
+    .seg { grid-template-columns: 48px 40px 1fr; gap: 8px; }
+    h1 { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ Lock screen ============ -->
+<div class="lock" id="lock">
+  <div class="lock-card">
+    <div class="lock-glyph">⌖</div>
+    <h1 class="lock-title">ATC <em>Transcript</em> Search</h1>
+    <div class="lock-sub">restricted · enter passphrase</div>
+    <form class="lock-form" id="lock-form">
+      <input id="pw" type="password" placeholder="passphrase" autocomplete="current-password" autofocus>
+      <button id="pw-go" type="submit">unlock</button>
+      <div class="lock-error" id="lock-err"></div>
+    </form>
+    <div class="lock-foot">aes-256-gcm · pbkdf2-sha256</div>
+  </div>
+</div>
+
+<!-- ============ App ============ -->
+<div class="app" id="app">
+  <header>
+    <h1>ATC <em>Transcript</em> Search</h1>
+    <div class="meta">
+      <span><b id="m-docs">—</b> recordings</span>
+      <span><b id="m-hours">—</b> hours</span>
+      <button class="lock-out" id="btn-lock">lock</button>
+    </div>
+  </header>
+
+  <div class="search-wrap">
+    <div class="search-row">
+      <input id="q" class="search-input" type="search" autocomplete="off"
+             placeholder="search transcripts… try “qantas thirty four” or “flight level one eight zero”">
+    </div>
+    <div class="filters">
+      <div class="group">
+        <span class="sep">role</span>
+        <button class="pill active" data-filter="all">all</button>
+        <button class="pill" data-filter="pilot">pilot</button>
+        <button class="pill" data-filter="atc">atc</button>
+      </div>
+      <div class="group">
+        <span class="sep">airport</span>
+        <select class="facet-select" id="f-airport"></select>
+        <button class="facet-clear" data-clear="airport" title="clear">×</button>
+      </div>
+      <div class="group">
+        <span class="sep">position</span>
+        <select class="facet-select" id="f-position"></select>
+        <button class="facet-clear" data-clear="position" title="clear">×</button>
+      </div>
+      <div class="group">
+        <span class="sep">date</span>
+        <select class="facet-select" id="f-date"></select>
+        <button class="facet-clear" data-clear="date" title="clear">×</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="status">
+    <span id="status-l"></span>
+    <span id="status-r"></span>
+  </div>
+
+  <main id="results"></main>
+
+  <footer>built with minisearch · client-side encrypted · no tracking</footer>
+</div>
+
+<script type="module">
+import MiniSearch from 'https://cdn.jsdelivr.net/npm/minisearch@7.1.0/+esm';
+
+// ============ DOM helpers ============
+const $ = id => document.getElementById(id);
+
+const lock = $('lock');
+const lockForm = $('lock-form');
+const lockErr = $('lock-err');
+const pwInput = $('pw');
+const pwBtn = $('pw-go');
+
+const app = $('app');
+const results = $('results');
+const q = $('q');
+const statusL = $('status-l');
+const statusR = $('status-r');
+
+// ============ State ============
+let ms = null;
+let allDocs = [];
+let meta = null;
+let activeFilter = 'all';
+const facetSel = { airport: '', position: '', date: '' };
+let currentResults = null;
+
+// ============ Crypto helpers ============
+const SESSION_KEY = 'atc-search-key-v1'; // stored in sessionStorage as base64
+
+async function deriveKey(password, saltBytes, iterations) {
+  const enc = new TextEncoder();
+  const baseKey = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(password),
+    { name: 'PBKDF2' },
+    false,
+    ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: saltBytes,
+      iterations,
+      hash: 'SHA-256',
+    },
+    baseKey,
+    { name: 'AES-GCM', length: 256 },
+    true,           // extractable so we can cache it for the session
+    ['decrypt']
+  );
+}
+
+async function decryptBlob(buffer, cryptoKey) {
+  // Layout: [12B IV][16B tag][ciphertext]. WebCrypto AES-GCM expects the tag
+  // appended to the ciphertext, which is what Node's createCipheriv outputs
+  // when we concat tag+enc — so we hand it [tag||ciphertext] as the data.
+  const iv = buffer.slice(0, 12);
+  const rest = buffer.slice(12);              // tag (16) + ciphertext
+  const ciphertextWithTag = new Uint8Array(rest.byteLength);
+  // WebCrypto wants ciphertext||tag, but our blob is tag||ciphertext.
+  // Reorder: ciphertext first, then tag.
+  const tag = new Uint8Array(rest.slice(0, 16));
+  const ct  = new Uint8Array(rest.slice(16));
+  ciphertextWithTag.set(ct, 0);
+  ciphertextWithTag.set(tag, ct.byteLength);
+
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: new Uint8Array(iv) },
+    cryptoKey,
+    ciphertextWithTag
+  );
+  return new TextDecoder().decode(plain);
+}
+
+function b64ToBytes(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+async function exportKey(cryptoKey) {
+  const raw = await crypto.subtle.exportKey('raw', cryptoKey);
+  return btoa(String.fromCharCode(...new Uint8Array(raw)));
+}
+async function importKey(b64) {
+  const bytes = b64ToBytes(b64);
+  return crypto.subtle.importKey('raw', bytes, { name: 'AES-GCM' }, true, ['decrypt']);
+}
+
+// ============ Boot flow ============
+async function fetchMeta() {
+  const r = await fetch('meta.json');
+  if (!r.ok) throw new Error('meta.json not found');
+  return r.json();
+}
+
+async function fetchEncrypted(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(`${path} not found`);
+  return r.arrayBuffer();
+}
+
+async function tryUnlockFromSession() {
+  const cached = sessionStorage.getItem(SESSION_KEY);
+  if (!cached) return false;
+  try {
+    const cryptoKey = await importKey(cached);
+    await loadEncryptedData(cryptoKey);
+    return true;
+  } catch (e) {
+    sessionStorage.removeItem(SESSION_KEY);
+    return false;
+  }
+}
+
+async function attemptUnlock(password) {
+  if (!meta) meta = await fetchMeta();
+  const salt = b64ToBytes(meta.kdf.salt);
+  const cryptoKey = await deriveKey(password, salt, meta.kdf.iterations);
+  await loadEncryptedData(cryptoKey);
+  // Cache for the session so reloads don't re-prompt within the tab.
+  sessionStorage.setItem(SESSION_KEY, await exportKey(cryptoKey));
+}
+
+async function loadEncryptedData(cryptoKey) {
+  if (!meta) meta = await fetchMeta();
+
+  const [dataBuf, indexBuf] = await Promise.all([
+    fetchEncrypted('data.enc'),
+    fetchEncrypted('index.enc'),
+  ]);
+
+  // Decrypt — if password is wrong, AES-GCM auth will throw.
+  const [dataJson, indexJson] = await Promise.all([
+    decryptBlob(dataBuf, cryptoKey),
+    decryptBlob(indexBuf, cryptoKey),
+  ]);
+
+  allDocs = JSON.parse(dataJson);
+  ms = MiniSearch.loadJS(JSON.parse(indexJson), {
+    fields: ['transcript', 'key'],
+    storeFields: ['key', 'duration', 'speakers', 'roles', 'segments', 'transcript',
+                  'airport', 'position', 'date', 'time'],
+    searchOptions: { boost: { key: 2 }, fuzzy: 0.2, prefix: true },
+    tokenize: (text) => text.split(/[\s,.;:!?()[\]{}"<>|/\\-]+/).filter(Boolean),
+  });
+
+  showApp();
+  populateFacets();
+  $('m-docs').textContent = meta.count.toLocaleString();
+  $('m-hours').textContent = ((meta.totalSeconds || 0) / 3600).toFixed(1);
+  statusL.textContent = `ready · ${meta.count.toLocaleString()} recordings`;
+  renderInitial();
+}
+
+function showApp() {
+  lock.style.display = 'none';
+  app.classList.add('unlocked');
+  q.focus();
+}
+
+function showLock(errMsg) {
+  app.classList.remove('unlocked');
+  lock.style.display = 'flex';
+  pwInput.value = '';
+  pwInput.focus();
+  lockErr.textContent = errMsg || '';
+  pwBtn.disabled = false;
+  pwBtn.textContent = 'unlock';
+}
+
+// ============ Lock form ============
+lockForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pw = pwInput.value;
+  if (!pw) return;
+  pwBtn.disabled = true;
+  pwBtn.textContent = 'deriving key…';
+  lockErr.textContent = '';
+  try {
+    await attemptUnlock(pw);
+  } catch (err) {
+    console.error(err);
+    showLock('wrong passphrase');
+  }
+});
+
+$('btn-lock').addEventListener('click', () => {
+  sessionStorage.removeItem(SESSION_KEY);
+  // Reload to fully clear in-memory data.
+  location.reload();
+});
+
+// ============ Facets ============
+function populateFacets() {
+  const fields = ['airport', 'position', 'date'];
+  for (const f of fields) {
+    const sel = $(`f-${f}`);
+    sel.innerHTML =
+      `<option value="">all (${(meta.facets[f] || []).reduce((a, x) => a + x.count, 0).toLocaleString()})</option>` +
+      (meta.facets[f] || []).map(x =>
+        `<option value="${escapeAttr(x.value)}">${escapeHtml(x.value)} (${x.count})</option>`
+      ).join('');
+    sel.addEventListener('change', () => {
+      facetSel[f] = sel.value;
+      rerun();
+    });
+  }
+  document.querySelectorAll('.facet-clear').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const f = btn.dataset.clear;
+      facetSel[f] = '';
+      $(`f-${f}`).value = '';
+      rerun();
+    });
+  });
+}
+
+// ============ Search ============
+function rerun() {
+  const query = q.value.trim();
+  if (!query) { currentResults = null; renderInitial(); return; }
+  doSearch(query);
+}
+
+function doSearch(query) {
+  if (!ms) return;
+  const t0 = performance.now();
+  const hits = ms.search(query, { combineWith: 'AND' });
+  currentResults = hits;
+  render(hits);
+  const filteredCount = applyFilters(hits).length;
+  statusR.textContent = `${filteredCount.toLocaleString()} of ${hits.length.toLocaleString()} hits · ${(performance.now() - t0).toFixed(1)}ms`;
+}
+
+function applyFilters(docs) {
+  return docs.filter(d => {
+    if (activeFilter !== 'all' && !(d.roles || []).includes(activeFilter)) return false;
+    if (facetSel.airport  && d.airport  !== facetSel.airport)  return false;
+    if (facetSel.position && d.position !== facetSel.position) return false;
+    if (facetSel.date     && d.date     !== facetSel.date)     return false;
+    return true;
+  });
+}
+
+// ============ Rendering ============
+function renderInitial() {
+  const filtered = applyFilters(allDocs);
+  const slice = filtered.slice(0, 50);
+  statusR.textContent = `showing ${slice.length} of ${filtered.length.toLocaleString()}`;
+  if (!slice.length) {
+    results.innerHTML = `<div class="empty"><div class="glyph">∅</div>nothing matches the current filters</div>`;
+    return;
+  }
+  results.innerHTML = slice.map(d => renderDoc(d, [])).join('');
+}
+
+function render(hits) {
+  const filtered = applyFilters(hits);
+  if (!filtered.length) {
+    results.innerHTML = `<div class="empty"><div class="glyph">∅</div>no transcripts matched.</div>`;
+    return;
+  }
+  results.innerHTML = filtered.slice(0, 200).map(h => renderDoc(h, h.terms || [])).join('');
+}
+
+function renderDoc(d, terms) {
+  const dur = d.duration ? `${d.duration.toFixed(1)}s` : '—';
+  const roleTags = (d.roles || []).map(r =>
+    `<span class="tag tag-role ${r}">${escapeHtml(r)}</span>`
+  ).join('');
+  const facetTags = ['airport', 'position', 'date'].map(f =>
+    d[f] ? `<span class="tag tag-facet">${escapeHtml(d[f])}</span>` : ''
+  ).join('');
+  const segs = (d.segments || []).map(s => `
+    <div class="seg">
+      <span class="seg-time">${formatMs(s.start)}</span>
+      <span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span>
+      <span class="seg-text">${highlight(s.text, terms)}</span>
+    </div>
+  `).join('');
+  return `
+    <article class="result">
+      <header class="result-head">
+        <div class="result-key">${highlight(d.key, terms)}</div>
+        <div class="result-tags">
+          ${roleTags}
+          ${facetTags}
+          <span class="tag-dur">${dur}</span>
+        </div>
+      </header>
+      <div class="segments">${segs}</div>
+    </article>
+  `;
+}
+
+function formatMs(ms) { return ms == null ? '' : (ms / 1000).toFixed(2) + 's'; }
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => (
+    { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]
+  ));
+}
+function escapeAttr(s) { return escapeHtml(s).replace(/`/g, '&#96;'); }
+
+function highlight(text, terms) {
+  const safe = escapeHtml(text || '');
+  if (!terms || !terms.length) return safe;
+  const pattern = terms
+    .map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .filter(Boolean)
+    .join('|');
+  if (!pattern) return safe;
+  try {
+    const re = new RegExp(`(${pattern})`, 'gi');
+    return safe.replace(re, '<mark>$1</mark>');
+  } catch {
+    return safe;
+  }
+}
+
+// ============ Wire up ============
+let debounceTimer;
+q.addEventListener('input', e => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => rerun(), 80);
+});
+
+document.querySelectorAll('.pill[data-filter]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.pill[data-filter]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.filter;
+    rerun();
+  });
+});
+
+// ============ Start ============
+(async function main() {
+  try {
+    meta = await fetchMeta();
+  } catch (e) {
+    showLock('couldn\u2019t load meta.json (have you built yet?)');
+    return;
+  }
+  // Try to silently unlock from sessionStorage if a key is cached.
+  const ok = await tryUnlockFromSession();
+  if (!ok) showLock('');
+})();
+</script>
+</body>
+</html>
