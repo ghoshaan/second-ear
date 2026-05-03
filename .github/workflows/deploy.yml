@@ -1,0 +1,112 @@
+name: build-and-deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      # ---------------------------------------------------------------------
+      # Download NDJSON from Google Drive.
+      #
+      # Google Drive blocks direct downloads of files > ~100 MB with a virus-
+      # scan warning interstitial. We work around it the standard way:
+      # 1. First curl gets the interstitial HTML and a session cookie
+      # 2. Parse the confirm token + uuid out of the HTML
+      # 3. Second curl uses the token + cookie to grab the actual file
+      #
+      # Reference (the technique most CLI tools use):
+      #   https://github.com/wkentaro/gdown
+      # ---------------------------------------------------------------------
+      - name: Fetch NDJSON from Google Drive
+        env:
+          GDRIVE_FILE_ID: ${{ secrets.GDRIVE_FILE_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GDRIVE_FILE_ID:-}" ]; then
+            echo "✗ GDRIVE_FILE_ID secret is not set."
+            exit 1
+          fi
+
+          URL="https://drive.usercontent.google.com/download?id=${GDRIVE_FILE_ID}&export=download"
+
+          # First request: get cookies + the confirmation page.
+          curl -sSL -c cookies.txt -o page.html "$URL"
+
+          # Try to extract a "confirm" token (form input) and uuid (form input)
+          # from the HTML. Drive's exact markup changes occasionally; this
+          # handles the most common forms.
+          CONFIRM=$(grep -oE 'name="confirm" value="[^"]+"' page.html | head -1 | sed -E 's/.*value="([^"]+)".*/\1/' || true)
+          UUID=$(grep -oE 'name="uuid" value="[^"]+"' page.html | head -1 | sed -E 's/.*value="([^"]+)".*/\1/' || true)
+
+          if [ -n "${CONFIRM:-}" ] && [ -n "${UUID:-}" ]; then
+            DOWNLOAD_URL="https://drive.usercontent.google.com/download?id=${GDRIVE_FILE_ID}&export=download&confirm=${CONFIRM}&uuid=${UUID}"
+          elif [ -n "${CONFIRM:-}" ]; then
+            DOWNLOAD_URL="https://drive.usercontent.google.com/download?id=${GDRIVE_FILE_ID}&export=download&confirm=${CONFIRM}"
+          else
+            # No interstitial — small file, or Drive served the file directly.
+            # Use the original URL.
+            DOWNLOAD_URL="$URL"
+          fi
+
+          echo "→ Downloading NDJSON…"
+          curl -sSL -b cookies.txt -o input.ndjson "$DOWNLOAD_URL"
+
+          # Sanity check: did we actually get an NDJSON, or HTML again?
+          SIZE=$(wc -c < input.ndjson)
+          FIRST_LINE=$(head -c 200 input.ndjson)
+          echo "→ Downloaded $(numfmt --to=iec --suffix=B "$SIZE")"
+          if echo "$FIRST_LINE" | grep -qiE '<!doctype html|<html'; then
+            echo "✗ Got HTML instead of NDJSON. The Drive share link might not be public,"
+            echo "  or the GDRIVE_FILE_ID is wrong, or Drive's interstitial markup changed."
+            echo "  First 200 bytes of what we got:"
+            echo "$FIRST_LINE"
+            exit 1
+          fi
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "✗ File is suspiciously small ($SIZE bytes). Check sharing settings."
+            exit 1
+          fi
+          echo "✓ NDJSON looks good."
+
+          rm -f cookies.txt page.html
+
+      - name: Build encrypted search index
+        env:
+          SEARCH_PASSWORD: ${{ secrets.SEARCH_PASSWORD }}
+        run: npm run build -- input.ndjson
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
