@@ -137,7 +137,7 @@
   .version-block.current .version-block-date { color: var(--amber); }
   .version-block.current .version-block-desc { color: var(--ink); }
   .version-block.prior { background: rgba(229,115,115,0.05); padding: 8px 10px; border-radius: 2px; margin: 4px -4px; }
-  mark.diff-del { background: rgba(229,115,115,0.25); color: var(--red); border-radius: 1px; padding: 0 2px; font-style: normal; }
+  mark.diff-del { background: rgba(229,115,115,0.3); color: var(--red); border-radius: 1px; padding: 0; font-style: normal; }
 
   .empty { padding: 80px 32px; text-align: center; color: var(--ink-faint); }
   .empty .glyph { font-family: 'Fraunces', serif; font-size: 64px; font-style: italic; color: var(--line-2); margin-bottom: 12px; }
@@ -561,6 +561,33 @@ function lcsWords(a, b) {
   return dp;
 }
 const normWord = w => w.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '').toLowerCase();
+// Character-level LCS diff between two words — highlights only the changed chars.
+function charDiff(oldW, newW) {
+  const oc = [...oldW], nc = [...newW];
+  const m = oc.length, n = nc.length;
+  if (m * n > 2000) return `<mark class="diff-del">${escapeHtml(oldW)}</mark>`;
+  const dp = Array.from({length: m + 1}, () => new Uint8Array(n + 1));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = oc[i-1] === nc[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
+  const matched = new Set();
+  let i = m, j = n;
+  while (i > 0 && j > 0) {
+    if (oc[i-1] === nc[j-1]) { matched.add(i-1); i--; j--; }
+    else if (dp[i-1][j] >= dp[i][j-1]) i--;
+    else j--;
+  }
+  // Group consecutive deleted chars into one <mark> to avoid per-char padding artifacts
+  let html = '', inMark = false;
+  for (let k = 0; k < oc.length; k++) {
+    const del = !matched.has(k);
+    if (del && !inMark)  { html += '<mark class="diff-del">'; inMark = true; }
+    if (!del && inMark)  { html += '</mark>'; inMark = false; }
+    html += escapeHtml(oc[k]);
+  }
+  if (inMark) html += '</mark>';
+  return html;
+}
 function wordDiff(oldText, newText) {
   const ow = (oldText || '').split(/\s+/).filter(Boolean);
   const nw = (newText || '').split(/\s+/).filter(Boolean);
@@ -572,15 +599,24 @@ function wordDiff(oldText, newText) {
   if (!dp) return { html: escapeHtml(oldText), pct: null };
   const lcsLen = dp[on.length][nn.length];
   const pct = Math.round((on.length - lcsLen) / on.length * 100);
-  const matched = new Set();
+  // Backtrack — track which new words were matched too
+  const matchedOld = new Set();
+  const newMatched = new Array(nw.length).fill(false);
   let i = on.length, j = nn.length;
   while (i > 0 && j > 0) {
-    if (on[i-1] === nn[j-1]) { matched.add(i-1); i--; j--; }
+    if (on[i-1] === nn[j-1]) { matchedOld.add(i-1); newMatched[j-1] = true; i--; j--; }
     else if (dp[i-1][j] >= dp[i][j-1]) i--;
     else j--;
   }
+  // Pair unmatched old words with unmatched new words (in order) for char-level diff.
+  // Extra old words with no new counterpart are shown as whole-word deletions.
+  const unmatchedNew = nw.filter((_, k) => !newMatched[k]);
+  let ni = 0;
   return {
-    html: ow.map((w, idx) => matched.has(idx) ? escapeHtml(w) : `<mark class="diff-del">${escapeHtml(w)}</mark>`).join(' '),
+    html: ow.map((w, idx) => {
+      if (matchedOld.has(idx)) return escapeHtml(w);
+      return ni < unmatchedNew.length ? charDiff(w, unmatchedNew[ni++]) : `<mark class="diff-del">${escapeHtml(w)}</mark>`;
+    }).join(' '),
     pct,
   };
 }
