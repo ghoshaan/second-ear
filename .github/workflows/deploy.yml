@@ -100,11 +100,19 @@ jobs:
             entry=$(echo "$raw" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
             [ -z "$entry" ] && continue
 
-            # Split on the rightmost colon: ID:BATCH
-            FILE_ID="${entry%:*}"
-            BATCH="${entry##*:}"
-            if [ "$FILE_ID" = "$BATCH" ]; then
-              echo "✗ Entry '$entry' is missing :BATCH suffix. Use 'FILE_ID:batch_name'."
+
+# Split on colons: FILE_ID:BATCH[:DATE]
+            # DATE is optional. If present, must be YYYY-MM-DD.
+            IFS=':' read -ra PARTS <<< "$entry"
+            if [ "${#PARTS[@]}" -lt 2 ]; then
+              echo "✗ Entry '$entry' is missing :BATCH suffix. Use 'FILE_ID:batch_name[:YYYY-MM-DD]'."
+              exit 1
+            fi
+            FILE_ID="${PARTS[0]}"
+            BATCH="${PARTS[1]}"
+            DATE="${PARTS[2]:-}"
+            if [ -n "$DATE" ] && ! echo "$DATE" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+              echo "✗ Date '$DATE' must be YYYY-MM-DD."
               exit 1
             fi
 
@@ -117,7 +125,11 @@ jobs:
             OUT="batch-${BATCH}.ndjson"
             echo "→ Downloading ${BATCH}..."
             download_one "$FILE_ID" "$OUT"
-            BUILD_ARGS="$BUILD_ARGS $OUT:$BATCH"
+if [ -n "$DATE" ]; then
+              BUILD_ARGS="$BUILD_ARGS $OUT:$BATCH:$DATE"
+            else
+              BUILD_ARGS="$BUILD_ARGS $OUT:$BATCH"
+            fi
           done
 
           # Save args for the next step.

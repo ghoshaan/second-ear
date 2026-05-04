@@ -45,22 +45,40 @@ const INDEX_PATH = path.join(OUT_DIR, 'index.enc');
 const META_PATH = path.join(OUT_DIR, 'meta.json');
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
-// Parse FILE[:BATCH] specs.
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const jobs = inputs.map(spec => {
-  // Allow bare "FILE" (no colon) or "FILE:BATCH". Windows paths like
-  // "C:\foo\bar.ndjson" have a colon — we only treat the LAST colon as
-  // a separator if what follows looks like a batch name (no slashes).
-  const lastColon = spec.lastIndexOf(':');
-  if (lastColon > 1) { // > 1 to skip Windows drive letter "C:"
-    const maybeBatch = spec.slice(lastColon + 1);
-    if (!maybeBatch.includes('/') && !maybeBatch.includes('\\') && !maybeBatch.includes('.')) {
-      return { file: spec.slice(0, lastColon), batch: maybeBatch };
+  // Spec formats: "FILE", "FILE:BATCH", or "FILE:BATCH:YYYY-MM-DD".
+  // Windows paths have "C:" — handle by checking if the trailing piece
+  // looks like a batch/date rather than a path fragment.
+  //
+  // Strategy: split on all colons, then peel off date and batch from
+  // the right if they look right.
+  const parts = spec.split(':');
+  let snapshotDate = null;
+  let batch = null;
+  let file = spec;
+
+  if (parts.length >= 2) {
+    const last = parts[parts.length - 1];
+    if (DATE_RE.test(last)) {
+      // Last piece is a date. Second-to-last is batch.
+      snapshotDate = last;
+      if (parts.length >= 3) {
+        batch = parts[parts.length - 2];
+        file = parts.slice(0, -2).join(':');
+      }
+    } else if (!last.includes('/') && !last.includes('\\') && !last.includes('.')) {
+      // Last piece looks like a batch name (no slashes, no dots).
+      batch = last;
+      file = parts.slice(0, -1).join(':');
     }
   }
-  // Default batch = basename without extension.
-  return { file: spec, batch: path.basename(spec).replace(/\.ndjson$/i, '') };
-});
 
+  // Default batch = basename without extension.
+  if (!batch) batch = path.basename(file).replace(/\.ndjson$/i, '');
+
+  return { file, batch, snapshotDate };
+});
 for (const job of jobs) {
   if (!fs.existsSync(job.file)) {
     console.error(`✗ Input not found: ${job.file}`);
@@ -114,7 +132,7 @@ function parseReview(workflowHistory) {
 // Row flattening
 // ---------------------------------------------------------------------------
 
-function flatten(row, batchName) {
+function flatten(row, batchName, snapshotDate) {
   const id = row?.data_row?.id;
   const key = row?.data_row?.global_key;
   const duration = row?.media_attributes?.duration ?? null;
@@ -131,7 +149,7 @@ function flatten(row, batchName) {
   if (!label) {
     return {
       id, key, duration, projectId, ...facets,
-      batch: batchName, annotator, ...review,
+      batch: batchName, snapshotDate, annotator, ...review,
       speakers: 0, roles: [], segments: [], transcript: '',
     };
   }
@@ -204,7 +222,7 @@ function flatten(row, batchName) {
 
   return {
     id, key, duration, projectId, ...facets,
-    batch: batchName, annotator, ...review,
+    batch: batchName, snapshotDate, annotator, ...review,
     speakers: roles.length,
     roles, segments: dedupedSegments, transcript,
   };
@@ -220,7 +238,7 @@ let totalSkipped = 0;
 let totalDuped = 0;
 
 for (const job of jobs) {
-  console.log(`→ Reading ${job.file}  (batch="${job.batch}")`);
+  console.log(`→ Reading ${job.file}  (batch="${job.batch}"${job.snapshotDate ? `, date=${job.snapshotDate}` : ''})`);
   let lineNum = 0;
   let kept = 0;
   let skipped = 0;
@@ -236,7 +254,7 @@ for (const job of jobs) {
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {
-      const flat = flatten(JSON.parse(trimmed), job.batch);
+      const flat = flatten(JSON.parse(trimmed), job.batch, job.snapshotDate);
       if (!flat.transcript) { skipped++; continue; }
       if (flat.id && seenIds.has(flat.id)) { duped++; continue; }
       if (flat.id) seenIds.add(flat.id);
