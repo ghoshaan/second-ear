@@ -638,7 +638,7 @@ function renderHistory(versions, id, d) {
   const currentBlock = `<div class="version-block current"><div class="version-block-header"><span class="version-block-date">${escapeHtml(d.snapshotDate || '—')}</span><span class="version-block-glyph">↑</span><span class="version-block-desc">${currentDesc}</span></div></div>`;
   const priorBlocks = rev.map((v, i) => {
     let desc = versionDesc(v);
-    if (v.changeType !== 'state-only' && v.changeType !== 'initial') {
+    if (v.changeType !== 'state-only' && (v.changeType !== 'initial' || !v.reviewed)) {
       const { pct } = wordDiff(v.transcript || '', d.transcript || '');
       if (pct !== null) desc += ` · <span style="color:var(--red);opacity:0.75">${pct}% changed</span>`;
     }
