@@ -9,8 +9,14 @@ Two sources are merged:
          "202_hours_atc_AU_CH_IE_NL_*.ndjson": "LuckyTulip"
        Date is auto-extracted from any ISO timestamp in the filename
        (e.g. 20260427T204919Z → 2026-04-27-20).
+       When the same export is re-downloaded, the OS appends " (1)", " (2)"
+       etc. before the extension. The download number is appended to the date
+       (e.g. 2026-04-27-20-1) so snapshots sort in the correct order for
+       version history without discarding any files.
 """
 import fnmatch, glob, json, os, re, sys
+
+_NUMBERED_RE = re.compile(r'^(.*?) \((\d+)\)(\.ndjson)$', re.IGNORECASE)
 
 DIR = 'ndjson'
 args = []
@@ -39,8 +45,14 @@ if os.path.exists(manifest_path):
             sys.exit(1)
         for filename in matches:
             path = os.path.join(DIR, filename)
-            m = re.search(r'(\d{4})(\d{2})(\d{2})T(\d{2})\d{4}Z', filename)
+            nm = _NUMBERED_RE.match(filename)
+            dl_num = int(nm.group(2)) if nm else 0
+            # Extract ISO timestamp from the base name (strip " (N)" before searching)
+            base_name = nm.group(1) + nm.group(3) if nm else filename
+            m = re.search(r'(\d{4})(\d{2})(\d{2})T(\d{2})\d{4}Z', base_name)
             date = f"{m.group(1)}-{m.group(2)}-{m.group(3)}-{m.group(4)}" if m else None
+            if date and dl_num:
+                date = f"{date}-{dl_num}"
             args.append(f"{path}:{batch}:{date}" if date else f"{path}:{batch}")
             seen.add(filename)
 
