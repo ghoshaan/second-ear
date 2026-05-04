@@ -4,5 +4,4 @@ public/index.enc
 public/meta.json
 input.ndjson
 *.ndjson
-!ndjson/*.ndjson
 test-decrypt.mjs
