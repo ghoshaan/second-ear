@@ -136,6 +136,8 @@
   .version-block-desc { color: var(--ink-dim); }
   .version-block.current .version-block-date { color: var(--amber); }
   .version-block.current .version-block-desc { color: var(--ink); }
+  .version-block.prior { background: rgba(229,115,115,0.05); padding: 8px 10px; border-radius: 2px; margin: 4px -4px; }
+  mark.diff-del { background: rgba(229,115,115,0.25); color: var(--red); border-radius: 1px; padding: 0 2px; font-style: normal; }
 
   .empty { padding: 80px 32px; text-align: center; color: var(--ink-faint); }
   .empty .glyph { font-family: 'Fraunces', serif; font-size: 64px; font-style: italic; color: var(--line-2); margin-bottom: 12px; }
@@ -549,24 +551,60 @@ function versionDesc(v) {
   if (v.changeType === 'state-and-content') return v.reviewed ? `approved · transcript revised` : 'transcript revised · status changed';
   return escapeHtml(v.changeType || '?');
 }
-function renderVersionSegs(segments) {
+function lcsWords(a, b) {
+  const m = a.length, n = b.length;
+  if (m * n > 60000) return null; // skip diff for very long transcripts
+  const dp = Array.from({ length: m + 1 }, () => new Uint16Array(n + 1));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
+  return dp;
+}
+function wordDiff(oldText, newText) {
+  const ow = (oldText || '').split(/\s+/).filter(Boolean);
+  const nw = (newText || '').split(/\s+/).filter(Boolean);
+  if (!ow.length) return { html: '', pct: null };
+  if (!nw.length) return { html: ow.map(w => `<mark class="diff-del">${escapeHtml(w)}</mark>`).join(' '), pct: 100 };
+  const dp = lcsWords(ow, nw);
+  if (!dp) return { html: escapeHtml(oldText), pct: null };
+  const lcsLen = dp[ow.length][nw.length];
+  const pct = Math.round((ow.length - lcsLen) / ow.length * 100);
+  const matched = new Set();
+  let i = ow.length, j = nw.length;
+  while (i > 0 && j > 0) {
+    if (ow[i-1] === nw[j-1]) { matched.add(i-1); i--; j--; }
+    else if (dp[i-1][j] >= dp[i][j-1]) i--;
+    else j--;
+  }
+  return {
+    html: ow.map((w, idx) => matched.has(idx) ? escapeHtml(w) : `<mark class="diff-del">${escapeHtml(w)}</mark>`).join(' '),
+    pct,
+  };
+}
+function renderVersionSegs(segments, currentSegments) {
   if (!segments || !segments.length) return '';
-  return `<div class="segments">${segments.map(s =>
-    `<div class="seg"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span><span class="seg-text">${escapeHtml(s.text)}</span></div>`
-  ).join('')}</div>`;
+  const curByStart = new Map((currentSegments || []).map(s => [s.start, s]));
+  return `<div class="segments">${segments.map(s => {
+    const cur = curByStart.get(s.start);
+    const textHtml = cur ? wordDiff(s.text, cur.text).html : escapeHtml(s.text);
+    return `<div class="seg"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span><span class="seg-text">${textHtml}</span></div>`;
+  }).join('')}</div>`;
 }
 function renderHistory(versions, id, d) {
   if (!versions || !versions.length) return '';
   const rev = [...versions].reverse();
-  // Current block: header only — ↑ points to the segments already visible on the card above
   const currentDesc = d.reviewed
     ? `approved by ${escapeHtml(d.reviewedBy || '?')}`
     : `labeler ${escapeHtml(d.annotator || '?')}`;
   const currentBlock = `<div class="version-block current"><div class="version-block-header"><span class="version-block-date">${escapeHtml(d.snapshotDate || '—')}</span><span class="version-block-glyph">↑</span><span class="version-block-desc">${currentDesc}</span></div></div>`;
-  // Prior version blocks: header + segments (skip segments for state-only changes)
   const priorBlocks = rev.map((v, i) => {
-    const segs = v.changeType !== 'state-only' ? renderVersionSegs(v.segments) : '';
-    return `<div class="version-block"><div class="version-block-header"><span class="version-block-date">${escapeHtml(v.snapshotDate || '—')}</span><span class="version-block-glyph">${versionGlyph(v, rev[i + 1])}</span><span class="version-block-desc">${versionDesc(v)}</span></div>${segs}</div>`;
+    let desc = versionDesc(v);
+    if (v.changeType !== 'state-only') {
+      const { pct } = wordDiff(v.transcript || '', d.transcript || '');
+      if (pct !== null) desc += ` · <span style="color:var(--red);opacity:0.75">${pct}% changed</span>`;
+    }
+    const segs = v.changeType !== 'state-only' ? renderVersionSegs(v.segments, d.segments) : '';
+    return `<div class="version-block prior"><div class="version-block-header"><span class="version-block-date">${escapeHtml(v.snapshotDate || '—')}</span><span class="version-block-glyph">${versionGlyph(v, rev[i + 1])}</span><span class="version-block-desc">${desc}</span></div>${segs}</div>`;
   }).join('');
   return `<div class="history-panel" id="hp-${escapeAttr(String(id))}">${currentBlock}${priorBlocks}</div>`;
 }
