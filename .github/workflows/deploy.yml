@@ -19,6 +19,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Scheduled runs only make sense once Labelbox is configured.
+    # Push and manual triggers always proceed (including the Drive fallback).
+    if: github.event_name != 'schedule' || secrets.LABELBOX_PROJECTS != ''
     steps:
       - uses: actions/checkout@v4
 
