@@ -11,19 +11,14 @@ Static, password-gated, full-text search over ATC transcript NDJSON.
 
 ## Data sources
 
-The workflow tries **Labelbox API first**. If `LABELBOX_PROJECTS` is not set it falls back to **Google Drive**. Everything from `npm run build` onward is identical either way.
-
-### Option A — Labelbox API (preferred)
-
-Pulls data directly from Labelbox on a schedule. No manual exports or Drive uploads needed.
-
+Pulls data directly from Labelbox on a schedule.
 #### Secrets
 
 | Secret | Value |
 |---|---|
 | `LABELBOX_API_KEY` | Labelbox API token — Account → API Keys |
 | `LABELBOX_PROJECTS` | Comma-separated project entries (see format below) |
-| `SEARCH_PASSWORD` | Search passphrase (unchanged) |
+| `SEARCH_PASSWORD` | Search passphrase |
 
 #### `LABELBOX_PROJECTS` format
 
@@ -32,39 +27,8 @@ PROJECT_ID:BATCH_NAME, PROJECT_ID:BATCH_NAME, ...
 ```
 
 - **PROJECT_ID** — from the Labelbox URL: `app.labelbox.com/projects/<PROJECT_ID>/...`
-- **BATCH_NAME** — short label shown in the UI (letters, digits, `-`, `_`, `.`)
-- Date is **auto-stamped** at run time (`YYYY-MM-DD-HH` UTC) — no need to update the secret between runs
+- **BATCH_NAME** — short label shown in the UI (e.g. AdequateLasagna)
 
-You can override the date manually if needed: `PROJECT_ID:BATCH_NAME:YYYY-MM-DD`
-
-#### Current projects
-
-```
-cmoboff2o0mnk07zwg0thgem7:NeutralKoala, cmoboldal08eg0738ayr2gdcy:CoastalLatency, cmokdpcr706v5070x7kt0b3ph:LuckyTulip
-```
-
-#### Verify an API key (before setting secrets)
-
-```bash
-pip install labelbox
-LABELBOX_API_KEY=<your-key> python3 scripts/lb_verify.py
-```
-
-Expected output:
-```
-→ Connecting to Labelbox...
-✓ Connected — you@example.com  (org: YourOrg)
-
-  ✓ NeutralKoala     'NeutralKoala project'
-  ✓ CoastalLatency   'CoastalLatency project'
-  ✓ LuckyTulip       'LuckyTulip project'
-
-All projects reachable. Set these two secrets to activate automated exports:
-  LABELBOX_API_KEY  = <your key>
-  LABELBOX_PROJECTS = cmoboff2o0mnk07zwg0thgem7:NeutralKoala,...
-```
-
-This confirms the key authenticates and has access to all three projects without doing a full export or writing any files.
 
 #### How it works
 
@@ -85,89 +49,6 @@ The workflow runs **every hour** (`0 * * * *` UTC). Scheduled runs are skipped a
 
 To change the frequency, edit the `cron` line in `.github/workflows/deploy.yml`.
 
----
-
-### Option B — Google Drive (fallback)
-
-Used when `LABELBOX_PROJECTS` is not set. Requires a manual Labelbox export uploaded to Google Drive.
-
-#### Secrets
-
-| Secret | Value |
-|---|---|
-| `GDRIVE_FILES` | Comma-separated `FILE_ID:BATCH_NAME[:YYYY-MM-DD]` pairs |
-| `SEARCH_PASSWORD` | Search passphrase (unchanged) |
-
-Example:
-```
-1abc...XYZ:NeutralKoala:2026-05-04, 2def...UVW:CoastalLatency:2026-05-04
-```
-
-The file ID is the segment between `/d/` and `/view` in the Drive share URL. The file must be shared as "Anyone with the link".
-
-#### Adding a new batch
-
-1. Export from Labelbox UI → upload NDJSON to Google Drive
-2. Set sharing to "Anyone with the link"
-3. Add the entry to `GDRIVE_FILES` in GitHub secrets
-4. **Actions → build-and-deploy → Run workflow**
-
-#### Automating builds when Drive files change
-
-Google Drive doesn't push events to GitHub, but a **Google Apps Script** can poll for changes and trigger the workflow automatically.
-
-**One-time setup:**
-
-1. Go to [script.google.com](https://script.google.com) → New project → paste:
-
-```javascript
-const REPO  = 'ghoshaan/search-DRs';
-const FILES = [
-  'YOUR_FILE_ID_1',   // file IDs from GDRIVE_FILES
-  'YOUR_FILE_ID_2',
-];
-
-function checkDriveForUpdates() {
-  const props     = PropertiesService.getScriptProperties();
-  const lastCheck = new Date(Number(props.getProperty('lastCheck') || '0'));
-  const pat       = props.getProperty('GITHUB_PAT');
-
-  let changed = false;
-  for (const id of FILES) {
-    if (DriveApp.getFileById(id).getLastUpdated() > lastCheck) {
-      changed = true;
-      break;
-    }
-  }
-
-  props.setProperty('lastCheck', Date.now().toString());
-
-  if (!changed) { Logger.log('No changes'); return; }
-
-  Logger.log('Change detected — triggering build');
-  UrlFetchApp.fetch(`https://api.github.com/repos/${REPO}/dispatches`, {
-    method: 'post',
-    headers: {
-      Authorization: `token ${pat}`,
-      Accept: 'application/vnd.github.v3+json',
-    },
-    payload: JSON.stringify({ event_type: 'drive-updated' }),
-    muteHttpExceptions: true,
-  });
-}
-```
-
-2. **Store your GitHub PAT**: Project Settings (cog) → Script Properties → add `GITHUB_PAT` = a GitHub token with `workflow` scope (Settings → Developer settings → Personal access tokens)
-
-3. **Set a trigger**: Triggers (clock icon) → Add trigger → `checkDriveForUpdates`, Time-driven, every 5–10 minutes
-
-The script checks whether any watched file was modified since the last check. If yes, it sends a `drive-updated` dispatch to GitHub and the workflow builds and deploys automatically.
-
-#### Backwards compat
-
-If you set `GDRIVE_FILE_ID` (the original single-file secret) instead of `GDRIVE_FILES`, the workflow treats it as one batch named `input`.
-
----
 
 ## Local development
 
