@@ -560,7 +560,7 @@ function lcsWords(a, b) {
       dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
   return dp;
 }
-const normWord = w => w.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '').toLowerCase();
+const normWord = w => w.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
 // Character-level LCS diff between two words — highlights only the changed chars.
 function charDiff(oldW, newW) {
   const oc = [...oldW], nc = [...newW];
