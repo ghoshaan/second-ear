@@ -294,13 +294,13 @@ for (const occurrences of grouped.values()) {
     const contentKey = occ.transcript;
 
     if (prevStateKey === null) {
-      versions.push({ snapshotDate: occ.snapshotDate, reviewed: occ.reviewed, reviewedBy: occ.reviewedBy, reviewedAt: occ.reviewedAt, annotator: occ.annotator, transcript: occ.transcript, changeType: 'initial' });
+      versions.push({ snapshotDate: occ.snapshotDate, reviewed: occ.reviewed, reviewedBy: occ.reviewedBy, reviewedAt: occ.reviewedAt, annotator: occ.annotator, transcript: occ.transcript, segments: occ.segments, changeType: 'initial' });
     } else {
       const sc = stateKey !== prevStateKey;
       const cc = contentKey !== prevContentKey;
       if (sc || cc) {
         const changeType = sc && cc ? 'state-and-content' : sc ? 'state-only' : 'content-only';
-        versions.push({ snapshotDate: occ.snapshotDate, reviewed: occ.reviewed, reviewedBy: occ.reviewedBy, reviewedAt: occ.reviewedAt, annotator: occ.annotator, transcript: occ.transcript, changeType });
+        versions.push({ snapshotDate: occ.snapshotDate, reviewed: occ.reviewed, reviewedBy: occ.reviewedBy, reviewedAt: occ.reviewedAt, annotator: occ.annotator, transcript: occ.transcript, segments: occ.segments, changeType });
       }
     }
 

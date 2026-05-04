@@ -132,6 +132,7 @@
   .history-date { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
   .history-glyph { color: var(--amber); text-align: center; }
   .history-desc { color: var(--ink-dim); }
+  .history-segs { margin: 4px 0 10px 126px; border-left: 1px solid var(--line); padding-left: 10px; }
 
   .empty { padding: 80px 32px; text-align: center; color: var(--ink-faint); }
   .empty .glyph { font-family: 'Fraunces', serif; font-size: 64px; font-style: italic; color: var(--line-2); margin-bottom: 12px; }
@@ -547,11 +548,18 @@ function versionDesc(v) {
 }
 function renderHistory(versions, id) {
   if (!versions || !versions.length) return '';
-  // Reverse for display: most recent at top. prevV is [i+1] in the reversed array = chronologically earlier.
   const rev = [...versions].reverse();
-  const entries = rev.map((v, i) =>
-    `<div class="history-entry"><span class="history-date">${escapeHtml(v.snapshotDate || '—')}</span><span class="history-glyph">${versionGlyph(v, rev[i + 1])}</span><span class="history-desc">${versionDesc(v)}</span></div>`
-  ).join('');
+  const entries = rev.map((v, i) => {
+    const header = `<div class="history-entry"><span class="history-date">${escapeHtml(v.snapshotDate || '—')}</span><span class="history-glyph">${versionGlyph(v, rev[i + 1])}</span><span class="history-desc">${versionDesc(v)}</span></div>`;
+    // Show segments for all versions except state-only (content unchanged there)
+    const showSegs = v.changeType !== 'state-only' && v.segments && v.segments.length;
+    const segsHtml = showSegs
+      ? `<div class="history-segs">${v.segments.map(s =>
+          `<div class="seg"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span><span class="seg-text">${escapeHtml(s.text)}</span></div>`
+        ).join('')}</div>`
+      : '';
+    return header + segsHtml;
+  }).join('');
   return `<div class="history-panel" id="hp-${escapeAttr(String(id))}">${entries}</div>`;
 }
 
