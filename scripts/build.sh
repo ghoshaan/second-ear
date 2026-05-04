@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Attempt LFS pull if inside a git repo with git-lfs available
+# Pull LFS objects. Vercel clones without LFS credentials, so we
+# re-authenticate using a GitHub token before pulling.
 if [ -d .git ] && command -v git-lfs &>/dev/null; then
   echo "→ Pulling Git LFS objects"
+  if [ -n "${GH_TOKEN:-}" ]; then
+    git config --global url."https://oauth2:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+  fi
   git lfs pull || echo "  git lfs pull failed — continuing with files as-is"
 fi
 
