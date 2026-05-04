@@ -495,7 +495,7 @@ function renderDoc(d, terms) {
     ? `<span class="tag tag-reviewed" title="reviewed by ${escapeAttr(d.reviewedBy || '?')}${reviewedAtFmt ? ' on ' + reviewedAtFmt : ''}">✓ reviewed</span>`
     : `<span class="tag tag-unreviewed">unreviewed</span>`;
   const versions = d.versions || [];
-  const vBadge = versions.length > 0
+  const vBadge = versions.length > 0 && !versions[0].reviewed
     ? `<button class="version-badge" data-vid="${escapeAttr(String(d.id))}">&#x1F4DC; ${versions.length}</button>`
     : '';
   const segs = (d.segments || []).map(s => `
