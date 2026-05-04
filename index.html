@@ -343,10 +343,10 @@ async function loadEncryptedData(cryptoKey) {
   ]);
   allDocs = JSON.parse(dataJson);
   ms = MiniSearch.loadJS(JSON.parse(indexJson), {
-    fields: ['transcript', 'key', 'id'],
+    fields: ['transcript', 'key', 'drId'],
     storeFields: ['id', 'projectId', 'key', 'duration', 'speakers', 'roles', 'segments', 'transcript',
                   'airport', 'position', 'date', 'time', 'batch', 'snapshotDate', 'annotator',
-                  'reviewed', 'reviewedBy', 'reviewedAt', 'versions'],
+                  'reviewed', 'reviewedBy', 'reviewedAt', 'drId', 'versions'],
     searchOptions: { boost: { key: 2 }, fuzzy: 0.2, prefix: true },
     tokenize: (text) => text.split(/[\s,.;:!?()[\]{}"<>|/\\-]+/).filter(Boolean),
   });
