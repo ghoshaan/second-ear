@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     # Skip scheduled runs until Labelbox is configured — no point rebuilding
     # the same static snapshots every hour.
-    if: github.event_name != 'schedule' || secrets.LABELBOX_PROJECTS != ''
+    if: github.event_name != 'schedule'
     steps:
       - uses: actions/checkout@v4
         with:
