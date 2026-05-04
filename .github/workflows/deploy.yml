@@ -5,12 +5,12 @@ on:
     branches: [main]
   workflow_dispatch:
   repository_dispatch:
-    types: [drive-updated]   # triggered by Google Apps Script when Drive file changes
+    types: [drive-updated]
   schedule:
     - cron: '0 * * * *'   # every hour at :00 UTC
 
 permissions:
-  contents: read
+  contents: write   # needed to commit new NDJSON snapshots back to ndjson/
   pages: write
   id-token: write
 
@@ -21,11 +21,13 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Scheduled runs only make sense once Labelbox is configured.
-    # Push and manual triggers always proceed (including the Drive fallback).
+    # Skip scheduled runs until Labelbox is configured — no point rebuilding
+    # the same static snapshots every hour.
     if: github.event_name != 'schedule' || secrets.LABELBOX_PROJECTS != ''
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
@@ -34,143 +36,64 @@ jobs:
 
       - run: npm ci
 
-      # ---------------------------------------------------------------------
-      # Step 1: Export directly from Labelbox API (preferred).
-      # Set secret LABELBOX_PROJECTS (comma-separated PROJECT_ID:BATCH[:DATE])
-      # and LABELBOX_API_KEY to enable this path.  If LABELBOX_PROJECTS is
-      # empty the step exits cleanly and Step 2 (Google Drive) takes over.
-      # ---------------------------------------------------------------------
-      - name: Export NDJSON from Labelbox
+      # -----------------------------------------------------------------------
+      # Export fresh snapshots from Labelbox → save to ndjson/ → commit.
+      # Each snapshot is a dated file; existing files are never overwritten, so
+      # the full history accumulates automatically.
+      # Skipped if LABELBOX_PROJECTS is not set.
+      # -----------------------------------------------------------------------
+      - name: Export from Labelbox
         env:
           LABELBOX_API_KEY: ${{ secrets.LABELBOX_API_KEY }}
           LABELBOX_PROJECTS: ${{ secrets.LABELBOX_PROJECTS }}
+          NDJSON_DIR: ndjson
         run: |
           set -euo pipefail
           if [ -z "${LABELBOX_PROJECTS:-}" ]; then
-            echo "→ LABELBOX_PROJECTS not set — skipping Labelbox export, will fall back to Google Drive"
+            echo "→ LABELBOX_PROJECTS not set — skipping Labelbox export"
             exit 0
           fi
           pip install labelbox --quiet
           python3 scripts/lb_export.py
-
-      # ---------------------------------------------------------------------
-      # Step 2: Google Drive fallback — only runs when Step 1 was skipped.
-      # GDRIVE_FILES is a comma-separated list of "FILE_ID:BATCH_NAME" pairs.
-      # Example secret value:
-      #   1abc...XYZ:january, 2def...UVW:february
-      #
-      # Backwards compat: if you only set GDRIVE_FILE_ID (the old single-file
-      # secret), we treat it as one entry with batch name "input".
-      # ---------------------------------------------------------------------
-      - name: Fetch NDJSON(s) from Google Drive
-        if: env.BUILD_ARGS == ''
-        env:
-          GDRIVE_FILES: ${{ secrets.GDRIVE_FILES }}
-          GDRIVE_FILE_ID: ${{ secrets.GDRIVE_FILE_ID }}
-        run: |
-          set -euo pipefail
-
-          # Normalize: prefer GDRIVE_FILES; fall back to single GDRIVE_FILE_ID.
-          SPEC="${GDRIVE_FILES:-}"
-          if [ -z "$SPEC" ] && [ -n "${GDRIVE_FILE_ID:-}" ]; then
-            SPEC="${GDRIVE_FILE_ID}:input"
-          fi
-          if [ -z "$SPEC" ]; then
-            echo "✗ Neither GDRIVE_FILES nor GDRIVE_FILE_ID is set."
-            exit 1
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ndjson/
+          if git diff --staged --quiet; then
+            echo "→ No new snapshots to commit"
+          else
+            git commit -m "chore: add Labelbox snapshot $(date -u +%Y-%m-%d-%H) [skip ci]"
+            git push
           fi
 
-          download_one() {
-            local FILE_ID="$1"
-            local OUT="$2"
-            local URL="https://drive.usercontent.google.com/download?id=${FILE_ID}&export=download"
-
-            # First request: cookies + interstitial HTML (for files > ~100MB)
-            curl -sSL -c "${OUT}.cookies" -o "${OUT}.page" "$URL"
-
-            local CONFIRM UUID DOWNLOAD_URL
-            CONFIRM=$(grep -oE 'name="confirm" value="[^"]+"' "${OUT}.page" | head -1 | sed -E 's/.*value="([^"]+)".*/\1/' || true)
-            UUID=$(grep -oE 'name="uuid" value="[^"]+"' "${OUT}.page" | head -1 | sed -E 's/.*value="([^"]+)".*/\1/' || true)
-
-            if [ -n "${CONFIRM:-}" ] && [ -n "${UUID:-}" ]; then
-              DOWNLOAD_URL="https://drive.usercontent.google.com/download?id=${FILE_ID}&export=download&confirm=${CONFIRM}&uuid=${UUID}"
-            elif [ -n "${CONFIRM:-}" ]; then
-              DOWNLOAD_URL="https://drive.usercontent.google.com/download?id=${FILE_ID}&export=download&confirm=${CONFIRM}"
-            else
-              DOWNLOAD_URL="$URL"
-            fi
-
-            curl -sSL -b "${OUT}.cookies" -o "$OUT" "$DOWNLOAD_URL"
-
-            local SIZE FIRST
-            SIZE=$(wc -c < "$OUT")
-            FIRST=$(head -c 200 "$OUT")
-            if echo "$FIRST" | grep -qiE '<!doctype html|<html'; then
-              echo "✗ ${OUT}: got HTML, not NDJSON. First 200 bytes:"
-              echo "$FIRST"
-              exit 1
-            fi
-            if [ "$SIZE" -lt 1000 ]; then
-              echo "✗ ${OUT}: file too small ($SIZE bytes). Check sharing."
-              exit 1
-            fi
-
-            rm -f "${OUT}.cookies" "${OUT}.page"
-            echo "✓ ${OUT}: $(numfmt --to=iec --suffix=B "$SIZE")"
-          }
-
-          # Build the list of args we'll pass to npm run build.
-          BUILD_ARGS=""
-
-          # Split SPEC on commas. Trim whitespace around each entry.
-          IFS=',' read -ra ENTRIES <<< "$SPEC"
-          for raw in "${ENTRIES[@]}"; do
-            entry=$(echo "$raw" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-            [ -z "$entry" ] && continue
-
-            # Split on colons: FILE_ID:BATCH[:DATE]
-            # DATE is optional. If present, must be YYYY-MM-DD or YYYY-MM-DD-HH.
-            IFS=':' read -ra PARTS <<< "$entry"
-            if [ "${#PARTS[@]}" -lt 2 ]; then
-              echo "✗ Entry '$entry' is missing :BATCH suffix. Use 'FILE_ID:batch_name[:YYYY-MM-DD[-HH]]'."
-              exit 1
-            fi
-            FILE_ID="${PARTS[0]}"
-            BATCH="${PARTS[1]}"
-            DATE="${PARTS[2]:-}"
-            if [ -n "$DATE" ] && ! echo "$DATE" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}(-[0-9]{2})?$'; then
-              echo "✗ Date '$DATE' must be YYYY-MM-DD or YYYY-MM-DD-HH."
-              exit 1
-            fi
-
-            # Sanity: batch name must be filename-safe.
-            if ! echo "$BATCH" | grep -qE '^[A-Za-z0-9_.-]+$'; then
-              echo "✗ Batch name '$BATCH' contains invalid characters. Use letters, digits, dot, dash, underscore."
-              exit 1
-            fi
-
-            # Include date in filename so two snapshots of the same batch don't collide.
-            if [ -n "$DATE" ]; then
-              OUT="batch-${BATCH}-${DATE}.ndjson"
-            else
-              OUT="batch-${BATCH}.ndjson"
-            fi
-            echo "→ Downloading ${BATCH}${DATE:+ ($DATE)}..."
-            download_one "$FILE_ID" "$OUT"
-            if [ -n "$DATE" ]; then
-              BUILD_ARGS="$BUILD_ARGS $OUT:$BATCH:$DATE"
-            else
-              BUILD_ARGS="$BUILD_ARGS $OUT:$BATCH"
-            fi
-          done
-
-          # Save args for the next step.
-          echo "BUILD_ARGS=$BUILD_ARGS" >> "$GITHUB_ENV"
-
+      # -----------------------------------------------------------------------
+      # Build from every file in ndjson/.
+      # Naming convention: batch-{BATCH}-{YYYY-MM-DD[-HH]}.ndjson
+      # All snapshots are included every build so version history accumulates.
+      # -----------------------------------------------------------------------
       - name: Build encrypted search index
         env:
           SEARCH_PASSWORD: ${{ secrets.SEARCH_PASSWORD }}
-        run: npm run build -- $BUILD_ARGS
+        run: |
+          set -euo pipefail
+          BUILD_ARGS=""
+          for f in ndjson/batch-*.ndjson; do
+            [ -f "$f" ] || continue
+            name=$(basename "$f" .ndjson)
+            rest="${name#batch-}"
+            date=$(echo "$rest" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}(-[0-9]{2})?$' || true)
+            if [ -n "$date" ]; then
+              batch="${rest%-${date}}"
+            else
+              batch="$rest"
+            fi
+            BUILD_ARGS="$BUILD_ARGS $f:$batch${date:+:$date}"
+          done
+          if [ -z "$BUILD_ARGS" ]; then
+            echo "✗ No NDJSON files found in ndjson/ — commit at least one snapshot to get started"
+            exit 1
+          fi
+          echo "→ Building from:$BUILD_ARGS"
+          npm run build -- $BUILD_ARGS
 
       - uses: actions/upload-pages-artifact@v3
         with:
