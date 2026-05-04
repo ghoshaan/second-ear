@@ -558,11 +558,11 @@ function renderVersionSegs(segments) {
 function renderHistory(versions, id, d) {
   if (!versions || !versions.length) return '';
   const rev = [...versions].reverse();
-  // Current block: header only — segments already visible on the card above
+  // Current block: header only — ↑ points to the segments already visible on the card above
   const currentDesc = d.reviewed
-    ? `current · approved by ${escapeHtml(d.reviewedBy || '?')}`
-    : `current · labeler ${escapeHtml(d.annotator || '?')}`;
-  const currentBlock = `<div class="version-block current"><div class="version-block-header"><span class="version-block-date">${escapeHtml(d.snapshotDate || '—')}</span><span class="version-block-glyph">●</span><span class="version-block-desc">${currentDesc}</span></div></div>`;
+    ? `approved by ${escapeHtml(d.reviewedBy || '?')}`
+    : `labeler ${escapeHtml(d.annotator || '?')}`;
+  const currentBlock = `<div class="version-block current"><div class="version-block-header"><span class="version-block-date">${escapeHtml(d.snapshotDate || '—')}</span><span class="version-block-glyph">↑</span><span class="version-block-desc">${currentDesc}</span></div></div>`;
   // Prior version blocks: header + segments (skip segments for state-only changes)
   const priorBlocks = rev.map((v, i) => {
     const segs = v.changeType !== 'state-only' ? renderVersionSegs(v.segments) : '';
