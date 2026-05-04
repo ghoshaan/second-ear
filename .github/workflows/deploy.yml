@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  repository_dispatch:
+    types: [drive-updated]   # triggered by Google Apps Script when Drive file changes
   schedule:
     - cron: '0 * * * *'   # every hour at :00 UTC
 
