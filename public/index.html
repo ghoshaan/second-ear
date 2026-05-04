@@ -560,19 +560,22 @@ function lcsWords(a, b) {
       dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
   return dp;
 }
+const normWord = w => w.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '').toLowerCase();
 function wordDiff(oldText, newText) {
   const ow = (oldText || '').split(/\s+/).filter(Boolean);
   const nw = (newText || '').split(/\s+/).filter(Boolean);
   if (!ow.length) return { html: '', pct: null };
   if (!nw.length) return { html: ow.map(w => `<mark class="diff-del">${escapeHtml(w)}</mark>`).join(' '), pct: 100 };
-  const dp = lcsWords(ow, nw);
+  const on = ow.map(normWord);
+  const nn = nw.map(normWord);
+  const dp = lcsWords(on, nn);
   if (!dp) return { html: escapeHtml(oldText), pct: null };
-  const lcsLen = dp[ow.length][nw.length];
-  const pct = Math.round((ow.length - lcsLen) / ow.length * 100);
+  const lcsLen = dp[on.length][nn.length];
+  const pct = Math.round((on.length - lcsLen) / on.length * 100);
   const matched = new Set();
-  let i = ow.length, j = nw.length;
+  let i = on.length, j = nn.length;
   while (i > 0 && j > 0) {
-    if (ow[i-1] === nw[j-1]) { matched.add(i-1); i--; j--; }
+    if (on[i-1] === nn[j-1]) { matched.add(i-1); i--; j--; }
     else if (dp[i-1][j] >= dp[i][j-1]) i--;
     else j--;
   }
