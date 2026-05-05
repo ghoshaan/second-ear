@@ -81,15 +81,7 @@ jobs:
             echo "→ DRIVE_NDJSON_IDS not set — skipping Drive download"
             exit 0
           fi
-          pip install --upgrade gdown --quiet
-          mkdir -p ndjson
-          IFS=',' read -ra IDS <<< "$DRIVE_NDJSON_IDS"
-          for raw in "${IDS[@]}"; do
-            id=$(echo "$raw" | xargs)
-            [ -z "$id" ] && continue
-            echo "→ Downloading Drive ID: $id"
-            (cd ndjson && gdown "https://drive.google.com/uc?id=${id}")
-          done
+          python3 scripts/drive_download.py ndjson
           echo "→ NDJSON files in ndjson/ after Drive download:"
           ls -lh ndjson/*.ndjson 2>/dev/null || echo "  (none)"
 
