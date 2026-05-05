@@ -472,12 +472,12 @@ $('btn-lock').addEventListener('click', () => {
   sessionStorage.removeItem(SESSION_KEY);
   location.reload();
 });
-
 // ====================== Facets ======================
 function populateFacets() {
-// Dropdowns: batch
-for (const f of ['batch']) {
+  // Dropdowns: batch
+  for (const f of ['batch']) {
     const sel = $(`f-${f}`);
+    if (!sel) continue; // Safety check
     const list = meta.facets[f] || [];
     const total = list.reduce((a, x) => a + x.count, 0);
     sel.innerHTML =
@@ -486,10 +486,11 @@ for (const f of ['batch']) {
     sel.addEventListener('change', () => { facetSel[f] = sel.value; rerun(); });
   }
 
-// Text inputs with autocomplete: annotator, reviewer
-for (const f of ['annotator', 'reviewer']) {
+  // Text inputs with autocomplete: annotator, reviewer
+  for (const f of ['annotator', 'reviewer']) {
     const input = $(`f-${f}`);
     const dl = $(`d-${f}`);
+    if (!input || !dl) continue; // Safety check
     const list = meta.facets[f] || [];
     dl.innerHTML = list
       .map(x => `<option value="${escapeAttr(x.value)}">${x.count}</option>`)
@@ -510,12 +511,11 @@ for (const f of ['annotator', 'reviewer']) {
       const f = btn.dataset.clear;
       facetSel[f] = '';
       const el = $(`f-${f}`);
-      el.value = '';
+      if (el) el.value = '';
       rerun();
     });
   });
 }
-
 // ====================== Search ======================
 function rerun() {
   currentPage = 1; // Reset to page 1 on new search/filter
