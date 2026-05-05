@@ -771,6 +771,7 @@ function buildExportHtml(docs) {
   .row { page-break-inside: avoid; break-inside: avoid; margin-bottom: 18pt; padding-bottom: 14pt; border-bottom: 1px solid #ddd; }
   .row:last-child { border-bottom: none; }
   .row-key { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11pt; font-weight: 600; word-break: break-all; }
+  .row-key a { color: #0a4ea8; text-decoration: underline; text-underline-offset: 2pt; text-decoration-thickness: 0.5pt; }
   .row-meta { font-size: 9pt; color: #555; margin: 4pt 0 10pt; }
   .row-meta span { margin-right: 12pt; white-space: nowrap; }
   .row-meta .reviewed { color: #2a7a3a; font-weight: 600; }
@@ -813,8 +814,12 @@ function exportRow(d) {
     versionsHtml = `<div class="versions-h">Edit history (${d.versions.length} prior version${d.versions.length === 1 ? '' : 's'})</div>${verBlocks}`;
   }
 
+  const keyText = escapeHtml(d.key || d.id || '');
+  const keyHtml = (d.projectId && d.id)
+    ? `<a href="https://app.labelbox.com/projects/${escapeAttr(d.projectId)}/data-rows/${escapeAttr(d.id)}">${keyText}</a>`
+    : keyText;
   return `<div class="row">
-    <div class="row-key">${escapeHtml(d.key || d.id || '')}</div>
+    <div class="row-key">${keyHtml}</div>
     <div class="row-meta">${review}${batch}${labeler}${facets}<span>${dur}</span></div>
     <div class="segs">${segs}</div>
     ${versionsHtml}
