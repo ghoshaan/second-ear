@@ -330,6 +330,7 @@ let activeReview = 'all';
 let activeHistory = 'all';
 let activeSort = 'relevance'; // <-- ADD THIS
 const facetSel = { batch: '', annotator: '', reviewer: '' };
+let currentResults = null; // <-- ADD THIS BACK
 const SESSION_KEY = 'atc-search-key-v1';
 const SELECTION_KEY = 'atc-search-selection-v1';
 let selection = new Set();
@@ -572,15 +573,6 @@ function renderPagination(totalPages) {
 
   $('page-prev')?.addEventListener('click', () => { currentPage--; renderPage(); window.scrollTo(0, 0); });
   $('page-next')?.addEventListener('click', () => { currentPage++; renderPage(); window.scrollTo(0, 0); });
-}
-function doSearch(query) {
-  if (!ms) return;
-  const t0 = performance.now();
-  const hits = ms.search(query, { combineWith: 'AND' });
-  currentResults = hits;
-  render(hits);
-  const filteredCount = applyFilters(hits).length;
-  statusR.textContent = `${filteredCount.toLocaleString()} of ${hits.length.toLocaleString()} hits · ${(performance.now() - t0).toFixed(1)}ms`;
 }
 function applyFilters(docs) {
   return docs.filter(d => {
