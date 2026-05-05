@@ -278,6 +278,14 @@
         <datalist id="d-reviewer"></datalist>
         <button class="facet-clear" data-clear="reviewer" title="clear">×</button>
       </div>
+      <div class="group">
+        <span class="sep">sort</span>
+        <select class="facet-select" id="f-sort">
+          <option value="relevance">relevance</option>
+          <option value="newest">newest first</option>
+          <option value="oldest">oldest first</option>
+        </select>
+      </div>
     </div>
   </div>
 
@@ -322,8 +330,8 @@ let meta = null;
 let activeFilter = 'all';
 let activeReview = 'all';
 let activeHistory = 'all';
-const facetSel = { airport: '', position: '', date: '', batch: '', annotator: '', reviewer: '' };
-let currentResults = null;
+let activeSort = 'relevance'; // <-- ADD THIS
+const facetSel = { airport: '', position: '', date: '', batch: '', annotator: '', reviewer: '' };let currentResults = null;
 
 const SESSION_KEY = 'atc-search-key-v1';
 const SELECTION_KEY = 'atc-search-selection-v1';
@@ -525,25 +533,55 @@ function applyFilters(docs) {
     return true;
   });
 }
+function applySort(docs) {
+  if (activeSort === 'relevance') return docs;
+  return [...docs].sort((a, b) => {
+    const dateA = a.snapshotDate || '';
+    const dateB = b.snapshotDate || '';
+    return activeSort === 'newest' 
+      ? String(dateB).localeCompare(String(dateA)) 
+      : String(dateA).localeCompare(String(dateB));
+  });
+}
 // ====================== Render ======================
-function renderInitial() {
+function updateDatalists(docs) {
+  const annMap = new Map(), revMap = new Map();
+  for (const d of docs) {
+    if (d.annotator) annMap.set(d.annotator, (annMap.get(d.annotator) || 0) + 1);
+    if (d.reviewedBy) revMap.set(d.reviewedBy, (revMap.get(d.reviewedBy) || 0) + 1);
+  }
+  
+  const buildHtml = (map) => [...map.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([val, count]) => `<option value="${escapeAttr(val)}">${count}</option>`)
+    .join('');
+
+  $('d-annotator').innerHTML = buildHtml(annMap);
+  $('d-reviewer').innerHTML = buildHtml(revMap);
+}function renderInitial() {
   const filtered = applyFilters(allDocs);
-  const slice = filtered.slice(0, 50);
+  const sorted = applySort(filtered); 
+  
+  updateDatalists(filtered); // <-- ADD THIS LINE
+
+  const slice = sorted.slice(0, 50); 
   statusR.textContent = `showing ${slice.length} of ${filtered.length.toLocaleString()}`;
   if (!slice.length) {
     results.innerHTML = `<div class="empty"><div class="glyph">∅</div>nothing matches the current filters</div>`;
     return;
   }
   results.innerHTML = slice.map(d => renderDoc(d, [])).join('');
-}
-
-function render(hits) {
+}function render(hits) {
   const filtered = applyFilters(hits);
-  if (!filtered.length) {
+  const sorted = applySort(filtered); 
+
+  updateDatalists(filtered); // <-- ADD THIS LINE
+
+  if (!sorted.length) {
     results.innerHTML = `<div class="empty"><div class="glyph">∅</div>no transcripts matched.</div>`;
     return;
   }
-  results.innerHTML = filtered.slice(0, 200).map(h => renderDoc(h, h.terms || [])).join('');
+  results.innerHTML = sorted.slice(0, 200).map(h => renderDoc(h, h.terms || [])).join('');
 }
 
 function renderDoc(d, terms) {
@@ -711,7 +749,7 @@ function hasRealHistory(versions, d) {
     else labelerVer = v;
   }
   if (!labelerVer || !reviewerVer) return false;
-  return (labelerVer.transcript || '') !== (reviewerVer.transcript || '');
+  return true;
 }
 function renderHistory(versions, id, d) {
   if (!versions || !versions.length || !hasRealHistory(versions, d)) return '';
@@ -916,6 +954,7 @@ function exportVersion(v, terms, d) {
 }
 
 // ====================== Wire up ======================
+
 let debounceTimer;
 q.addEventListener('input', e => {
   clearTimeout(debounceTimer);
@@ -987,6 +1026,10 @@ document.querySelectorAll('.pill[data-history]').forEach(btn => {
     activeHistory = btn.dataset.history;
     rerun();
   });
+});
+$('f-sort').addEventListener('change', (e) => {
+  activeSort = e.target.value;
+  rerun();
 });
 (async function main() {
   try { meta = await fetchMeta(); }
