@@ -262,22 +262,6 @@
         <button class="facet-clear" data-clear="batch" title="clear">×</button>
       </div>
       <div class="group">
-        <span class="sep">airport</span>
-        <input class="facet-input" id="f-airport" type="text" list="d-airport" placeholder="any" autocomplete="off">
-        <datalist id="d-airport"></datalist>
-        <button class="facet-clear" data-clear="airport" title="clear">×</button>
-      </div>
-      <div class="group">
-        <span class="sep">position</span>
-        <select class="facet-select" id="f-position"></select>
-        <button class="facet-clear" data-clear="position" title="clear">×</button>
-      </div>
-      <div class="group">
-        <span class="sep">date</span>
-        <select class="facet-select" id="f-date"></select>
-        <button class="facet-clear" data-clear="date" title="clear">×</button>
-      </div>
-      <div class="group">
         <span class="sep">labeler</span>
         <input class="facet-input annotator" id="f-annotator" type="text" list="d-annotator" placeholder="any" autocomplete="off">
         <datalist id="d-annotator"></datalist>
@@ -295,6 +279,8 @@
           <option value="relevance">relevance</option>
           <option value="newest">newest first</option>
           <option value="oldest">oldest first</option>
+          <option value="pct-desc">most changed (%)</option>
+          <option value="pct-asc">least changed (%)</option>
         </select>
       </div>
     </div>
@@ -343,7 +329,7 @@ let activeFilter = 'all';
 let activeReview = 'all';
 let activeHistory = 'all';
 let activeSort = 'relevance'; // <-- ADD THIS
-const facetSel = { airport: '', position: '', date: '', batch: '', annotator: '', reviewer: '' };let currentResults = null;
+const facetSel = { batch: '', annotator: '', reviewer: '' };
 const SESSION_KEY = 'atc-search-key-v1';
 const SELECTION_KEY = 'atc-search-selection-v1';
 let selection = new Set();
@@ -489,8 +475,8 @@ $('btn-lock').addEventListener('click', () => {
 
 // ====================== Facets ======================
 function populateFacets() {
-  // Dropdowns: batch, position, date
-  for (const f of ['batch', 'position', 'date']) {
+// Dropdowns: batch
+for (const f of ['batch']) {
     const sel = $(`f-${f}`);
     const list = meta.facets[f] || [];
     const total = list.reduce((a, x) => a + x.count, 0);
@@ -500,9 +486,8 @@ function populateFacets() {
     sel.addEventListener('change', () => { facetSel[f] = sel.value; rerun(); });
   }
 
-  // Text inputs with autocomplete: airport, annotator
- // Text inputs with autocomplete: airport, annotator, reviewer
- for (const f of ['airport', 'annotator', 'reviewer']) {
+// Text inputs with autocomplete: annotator, reviewer
+for (const f of ['annotator', 'reviewer']) {
     const input = $(`f-${f}`);
     const dl = $(`d-${f}`);
     const list = meta.facets[f] || [];
@@ -597,30 +582,50 @@ function doSearch(query) {
   const filteredCount = applyFilters(hits).length;
   statusR.textContent = `${filteredCount.toLocaleString()} of ${hits.length.toLocaleString()} hits · ${(performance.now() - t0).toFixed(1)}ms`;
 }
-
 function applyFilters(docs) {
   return docs.filter(d => {
     if (activeFilter !== 'all' && !(d.roles || []).includes(activeFilter)) return false;
     if (activeReview === 'reviewed' && !d.reviewed) return false;
     if (activeReview === 'unreviewed' && d.reviewed) return false;
     if (facetSel.batch && d.batch !== facetSel.batch) return false;
-    if (facetSel.airport && d.airport !== facetSel.airport) return false;
-    if (facetSel.position && d.position !== facetSel.position) return false;
-    if (facetSel.date && d.date !== facetSel.date) return false;
     if (facetSel.annotator && d.annotator !== facetSel.annotator) return false;
     if (facetSel.reviewer && d.reviewedBy !== facetSel.reviewer) return false;
     if (activeHistory === 'edited' && !hasRealHistory(d.versions, d)) return false;
     return true;
   });
+}function getDocPct(d) {
+  // Return cached percentage if already calculated
+  if (d._pct !== undefined) return d._pct;
+  
+  // If there's no history, percentage changed is 0
+  if (!d.versions || !d.versions.length) { 
+    d._pct = 0; 
+    return 0; 
+  }
+  
+  // Compare the chronologically first version to the final transcript
+  const initialVer = d.versions[0];
+  const diff = wordDiff(initialVer.transcript || '', d.transcript || '');
+  
+  // Save to cache (fallback to 0 if transcript was too large to diff)
+  d._pct = diff.pct || 0; 
+  return d._pct;
 }
+
 function applySort(docs) {
   if (activeSort === 'relevance') return docs;
   return [...docs].sort((a, b) => {
     const dateA = a.snapshotDate || '';
     const dateB = b.snapshotDate || '';
-    return activeSort === 'newest' 
-      ? String(dateB).localeCompare(String(dateA)) 
-      : String(dateA).localeCompare(String(dateB));
+    
+    if (activeSort === 'newest') return String(dateB).localeCompare(String(dateA));
+    if (activeSort === 'oldest') return String(dateA).localeCompare(String(dateB));
+    
+    // Sort by percentage changed (highest to lowest, or lowest to highest)
+    if (activeSort === 'pct-desc') return getDocPct(b) - getDocPct(a);
+    if (activeSort === 'pct-asc') return getDocPct(a) - getDocPct(b);
+    
+    return 0;
   });
 }
 // ====================== Render ======================
