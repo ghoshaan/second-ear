@@ -13,6 +13,7 @@ import http.cookiejar
 import os
 import re
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
@@ -67,11 +68,8 @@ def save_response(response, path):
             raise RuntimeError(f"got HTML instead of file (size={size}); auth/permission probably wrong")
 
 
-def download(file_id, dest_dir):
-    cj = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
-
-    url = f"{DOWNLOAD_URL}&id={urllib.parse.quote(file_id)}&confirm=t"
+def _try_download(opener, url, file_id, dest_dir):
+    print(f"  · GET {url}")
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     with opener.open(req) as r:
         ctype = r.headers.get("Content-Type", "")
@@ -80,6 +78,8 @@ def download(file_id, dest_dir):
             html = r.read().decode("utf-8", errors="ignore")
             parser = FormFieldParser()
             parser.feed(html)
+            if not parser.fields:
+                return False
             params = dict(parser.fields)
             params.setdefault("id", file_id)
             params.setdefault("export", "download")
@@ -87,6 +87,7 @@ def download(file_id, dest_dir):
             target = parser.action or USERCONTENT_URL
             full_url = target if target.startswith("http") else USERCONTENT_URL
             full_url = f"{full_url}?{urllib.parse.urlencode(params)}"
+            print(f"  · GET {full_url}")
             req2 = urllib.request.Request(full_url, headers={"User-Agent": UA})
             with opener.open(req2) as r2:
                 cd2 = r2.headers.get("Content-Disposition", "")
@@ -95,6 +96,27 @@ def download(file_id, dest_dir):
         else:
             fname = parse_filename(cd) or f"drive_{file_id}.ndjson"
             save_response(r, os.path.join(dest_dir, fname))
+        return True
+
+
+def download(file_id, dest_dir):
+    cj = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+    quoted = urllib.parse.quote(file_id)
+    candidate_urls = [
+        f"{DOWNLOAD_URL}&id={quoted}&confirm=t",
+        f"{USERCONTENT_URL}?id={quoted}&export=download&confirm=t",
+    ]
+    last_err = None
+    for url in candidate_urls:
+        try:
+            if _try_download(opener, url, file_id, dest_dir):
+                return
+        except urllib.error.HTTPError as e:
+            print(f"  · HTTP {e.code} {e.reason}")
+            last_err = e
+    raise RuntimeError(f"all endpoints failed for id={file_id} (last error: {last_err}). "
+                       f"Verify in incognito: https://drive.google.com/file/d/{file_id}/view")
 
 
 def main():
