@@ -800,7 +800,7 @@ function exportRow(d) {
   const dur = d.duration ? `${d.duration.toFixed(1)}s` : '—';
   const facets = ['airport', 'position', 'date', 'time'].filter(f => d[f]).map(f => `<span>${escapeHtml(d[f])}</span>`).join('');
   const review = d.reviewed
-    ? `<span class="reviewed">&#x2713; reviewed${d.reviewedBy ? ' by ' + escapeHtml(d.reviewedBy) : ''}${d.reviewedAt ? ' on ' + new Date(d.reviewedAt).toISOString().slice(0,10) : ''}</span>`
+    ? `<span class="reviewed">&#x2713; reviewed${d.reviewedAt ? ' on ' + new Date(d.reviewedAt).toISOString().slice(0,10) : ''}</span>`
     : `<span class="unreviewed">unreviewed</span>`;
   const labeler = d.annotator ? `<span>labeler: ${escapeHtml(d.annotator)}</span>` : '';
   const batch = d.batch ? `<span>batch: ${escapeHtml(d.batch)}</span>` : '';
@@ -830,7 +830,7 @@ function exportVersion(v) {
   const date = v.snapshotDate || '—';
   const desc = v.changeType === 'initial' ? `initial · labeler ${v.annotator || '?'}` :
                v.changeType === 'content-only' ? 'transcript revised' :
-               v.changeType === 'state-only' ? (v.reviewed ? `approved by ${v.reviewedBy || '?'}` : 'review status changed') :
+               v.changeType === 'state-only' ? (v.reviewed ? 'approved' : 'review status changed') :
                v.changeType === 'state-and-content' ? (v.reviewed ? 'approved · transcript revised' : 'transcript revised · status changed') :
                (v.changeType || '');
   const segs = (v.segments || []).map(s =>
