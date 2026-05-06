@@ -113,7 +113,7 @@
   .version-block.current .version-block-date { color: var(--amber); }
   .version-block.current .version-block-desc { color: var(--ink); }
   .version-block.prior { background: rgba(229,115,115,0.05); padding: 8px 10px; border-radius: 2px; margin: 4px -4px; }
-  mark.diff-del { background: rgba(229,115,115,0.3); color: var(--red); border-radius: 1px; padding: 0; font-style: normal; }
+  mark.diff-del { background: transparent; color: var(--red); text-decoration: line-through; border-radius: 0; padding: 0; font-style: normal; }
   mark.diff-add { background: rgba(102,187,106,0.25); color: var(--green); border-radius: 1px; padding: 0; font-style: normal; }
 
   .empty { padding: 80px 32px; text-align: center; color: var(--ink-faint); }
@@ -629,6 +629,7 @@ function charDiff(oldW, newW) {
 function wordSim(a, b) {
   if (!a.length || !b.length) return 0;
   if (a === b) return 1;
+  if (a.toLowerCase() === b.toLowerCase()) return 0.9;
   const m = a.length, n = b.length;
   if (m * n > 10000) return 0;
   let prev = new Uint16Array(n + 1), curr = new Uint16Array(n + 1);
@@ -704,9 +705,9 @@ function wordDiff(oldText, newText) {
 }
 function renderVersionSegs(segments, currentSegments) {
   if (!segments || !segments.length) return '';
-  const curByStart = new Map((currentSegments || []).map(s => [s.start, s]));
+  const curByStart = new Map((currentSegments || []).map(s => [Math.round(s.start), s]));
   return `<div class="segments">${segments.map(s => {
-    const cur = curByStart.get(s.start);
+    const cur = curByStart.get(Math.round(s.start));
     const textHtml = cur ? wordDiff(s.text, cur.text).html : escapeHtml(s.text);
     return `<div class="seg"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span><span class="seg-text">${textHtml}</span></div>`;
   }).join('')}</div>`;

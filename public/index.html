@@ -150,7 +150,7 @@
   .version-block.current .version-block-date { color: var(--amber); }
   .version-block.current .version-block-desc { color: var(--ink); }
   .version-block.prior { background: rgba(229,115,115,0.05); padding: 8px 10px; border-radius: 2px; margin: 4px -4px; }
-  mark.diff-del { background: rgba(229,115,115,0.3); color: var(--red); border-radius: 1px; padding: 0; font-style: normal; }
+  mark.diff-del { background: transparent; color: var(--red); text-decoration: line-through; border-radius: 0; padding: 0; font-style: normal; }
   mark.diff-add { background: rgba(102,187,106,0.25); color: var(--green); border-radius: 1px; padding: 0; font-style: normal; }
 
   .empty { padding: 80px 32px; text-align: center; color: var(--ink-faint); }
@@ -791,6 +791,7 @@ function charDiff(oldW, newW) {
 function wordSim(a, b) {
   if (!a.length || !b.length) return 0;
   if (a === b) return 1;
+  if (a.toLowerCase() === b.toLowerCase()) return 0.9; // case-only difference — always pair
   const m = a.length, n = b.length;
   if (m * n > 10000) return 0;
   let prev = new Uint16Array(n + 1), curr = new Uint16Array(n + 1);
@@ -821,9 +822,14 @@ function pairDelIns(dels, ins) {
   }
   const result = [];
   for (let di = 0; di < dels.length; di++) {
-    result.push(pairMap.has(di)
-      ? charDiff(dels[di], ins[pairMap.get(di)])
-      : `<mark class="diff-del">${escapeHtml(dels[di])}</mark>`);
+    if (pairMap.has(di)) {
+      const ins_word = ins[pairMap.get(di)];
+      result.push(wholeWord
+        ? `<mark class="diff-del">${escapeHtml(dels[di])}</mark><mark class="diff-add">${escapeHtml(ins_word)}</mark>`
+        : charDiff(dels[di], ins_word));
+    } else {
+      result.push(`<mark class="diff-del">${escapeHtml(dels[di])}</mark>`);
+    }
   }
   for (let ii = 0; ii < ins.length; ii++) {
     if (!usedI.has(ii)) result.push(`<mark class="diff-add">${escapeHtml(ins[ii])}</mark>`);
@@ -870,9 +876,9 @@ function wordDiff(oldText, newText) {
 }
 function renderVersionSegs(segments, currentSegments) {
   if (!segments || !segments.length) return '';
-  const curByStart = new Map((currentSegments || []).map(s => [s.start, s]));
+  const curByStart = new Map((currentSegments || []).map(s => [Math.round(s.start), s]));
   return `<div class="segments">${segments.map(s => {
-    const cur = curByStart.get(s.start);
+    const cur = curByStart.get(Math.round(s.start));
     const textHtml = cur ? wordDiff(s.text, cur.text).html : escapeHtml(s.text);
     return `<div class="seg"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span><span class="seg-text">${textHtml}</span></div>`;
   }).join('')}</div>`;
@@ -1038,13 +1044,13 @@ function buildExportHtml(docs, filename, termsMap) {
   .ver-submitted-badge { display: inline-block; background: #fff0d0; color: #b86b00; border: 0.5pt solid #ffb347; border-radius: 2pt; font-size: 8pt; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 0 4pt; margin-right: 5pt; vertical-align: middle; }
   mark { background: #fff48a; color: #111; padding: 0 1pt; border-radius: 1pt; }
   .row-key mark { background: #fff48a; color: #111; }
-  mark.diff-del { background: #fde0e0; color: #b8231f; padding: 0; border-radius: 1pt; font-style: normal; }
+  mark.diff-del { background: transparent; color: #b8231f; text-decoration: line-through; padding: 0; border-radius: 0; font-style: normal; }
   mark.diff-add { background: #d6f0d6; color: #1a5e1a; padding: 0; border-radius: 1pt; font-style: normal; }
   .ver-pct { color: #b8231f; opacity: 0.75; }
   @media print {
     .row, .ver { break-inside: avoid; page-break-inside: avoid; }
     mark { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff48a !important; }
-    mark.diff-del { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fde0e0 !important; color: #b8231f !important; }
+    mark.diff-del { color: #b8231f !important; text-decoration: line-through !important; }
     mark.diff-add { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #d6f0d6 !important; color: #1a5e1a !important; }
     .export-comment { background: #fdfaf5; border-left: 2pt solid #ffb347; padding: 6pt 10pt; margin-top: 8pt; font-size: 9.5pt; color: #333; }
   }
@@ -1116,9 +1122,9 @@ function exportVersion(v, terms, d) {
     if (pct !== null) desc += ` · <span class="ver-pct">${pct}% changed</span>`;
   }
   const badge = isSubmitted ? `<span class="ver-submitted-badge">submitted for review</span>` : '';
-  const curByStart = new Map((d.segments || []).map(s => [s.start, s]));
+  const curByStart = new Map((d.segments || []).map(s => [Math.round(s.start), s]));
   const segs = (v.segments || []).map(s => {
-    const cur = curByStart.get(s.start);
+    const cur = curByStart.get(Math.round(s.start));
     const textHtml = cur ? wordDiff(s.text, cur.text).html : highlight(s.text, terms);
     return `<div class="seg"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span><span class="seg-text">${textHtml}</span></div>`;
   }).join('');
