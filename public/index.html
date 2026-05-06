@@ -53,6 +53,7 @@
   .lock-form button { background: var(--amber); color: var(--bg); border: 1px solid var(--amber); font-family: inherit; font-size: 12px; text-transform: uppercase; letter-spacing: 0.16em; padding: 12px; cursor: pointer; font-weight: 700; }
   .lock-form button:disabled { opacity: 0.5; cursor: progress; }
   .lock-error { color: var(--red); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; min-height: 14px; margin-top: 4px; }
+  .lock-hint { color: var(--ink-dim); font-size: 11px; line-height: 1.5; margin-top: 6px; }
   .lock-foot { color: var(--ink-faint); font-size: 10px; text-transform: uppercase; letter-spacing: 0.16em; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
 
   /* App */
@@ -231,6 +232,7 @@
       <input id="pw" type="password" placeholder="passphrase" autocomplete="current-password" autofocus>
       <button id="pw-go" type="submit">unlock</button>
       <div class="lock-error" id="lock-err"></div>
+      <div class="lock-hint" id="lock-hint"></div>
     </form>
     <div class="lock-foot">aes-256-gcm · pbkdf2-sha256 · <a href="preview.html" style="color:inherit;text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px;">preview interface</a></div>
   </div>
@@ -428,12 +430,12 @@ async function importKey(b64) {
 
 // ====================== Boot ======================
 async function fetchMeta() {
-  const r = await fetch('meta.json');
+  const r = await fetch('meta.json', { cache: 'no-cache' });
   if (!r.ok) throw new Error('meta.json not found');
   return r.json();
 }
 async function fetchEncrypted(p) {
-  const r = await fetch(p);
+  const r = await fetch(p, { cache: 'no-cache' });
   if (!r.ok) throw new Error(`${p} not found`);
   return r.arrayBuffer();
 }
@@ -486,11 +488,12 @@ async function loadEncryptedData(cryptoKey) {
 }
 
 function showApp() { lock.style.display = 'none'; app.classList.add('unlocked'); q.focus(); }
-function showLock(msg) {
+function showLock(msg, hint) {
   app.classList.remove('unlocked');
   lock.style.display = 'flex';
   pwInput.value = ''; pwInput.focus();
   lockErr.textContent = msg || '';
+  $('lock-hint').textContent = hint || '';
   pwBtn.disabled = false; pwBtn.textContent = 'unlock';
 }
 
@@ -500,7 +503,14 @@ lockForm.addEventListener('submit', async (e) => {
   if (!pw) return;
   pwBtn.disabled = true; pwBtn.textContent = 'deriving key…'; lockErr.textContent = '';
   try { await attemptUnlock(pw); }
-  catch (err) { console.error(err); showLock('wrong passphrase'); }
+  catch (err) {
+    console.error(err);
+    const isDecryptErr = err instanceof DOMException && err.name === 'OperationError';
+    const hint = isDecryptErr
+      ? 'If your passphrase is correct, the site may have been rebuilt since your last visit. Press Ctrl+Shift+R (Cmd+Shift+R on Mac) to force a fresh load.'
+      : '';
+    showLock('wrong passphrase', hint);
+  }
 });
 
 $('btn-lock').addEventListener('click', () => {
