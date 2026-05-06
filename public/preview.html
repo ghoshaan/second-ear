@@ -119,6 +119,10 @@
   .seg.seg-added   { border-left: 2px solid var(--green); padding-left: 6px; opacity: 0.8; }
   .seg-role mark.diff-del, .seg-role mark.diff-add { font-size: inherit; text-transform: uppercase; letter-spacing: 0.05em; }
   .seg-time mark.diff-del, .seg-time mark.diff-add { font-size: inherit; font-family: inherit; font-variant-numeric: tabular-nums; }
+  .diff-aligned { display: inline-grid; column-gap: 0.35em; row-gap: 1px; align-items: baseline; }
+  .da-eq  { color: var(--ink-faint); }
+  .da-del { color: var(--red); text-decoration: line-through; }
+  .da-ins { color: var(--green); }
 
   .empty { padding: 80px 32px; text-align: center; color: var(--ink-faint); }
   .empty .glyph { font-family: 'Fraunces', serif; font-size: 64px; font-style: italic; color: var(--line-2); margin-bottom: 12px; }
@@ -641,6 +645,86 @@ function pairDelIns(dels, ins) {
   }
   return result;
 }
+function alignedWordDiff(oldText, newText) {
+  const ow = (oldText || '').split(/\s+/).filter(Boolean);
+  const nw = (newText || '').split(/\s+/).filter(Boolean);
+  if (!ow.length && !nw.length) return [];
+  if (!ow.length) return nw.map(w => ({ type: 'ins', word: w }));
+  if (!nw.length) return ow.map(w => ({ type: 'del', word: w }));
+  const on = ow.map(normWord), nn = nw.map(normWord);
+  const dp = lcsWords(on, nn);
+  if (!dp) {
+    const len = Math.max(ow.length, nw.length);
+    return Array.from({ length: len }, (_, i) => {
+      if (i < ow.length && i < nw.length) return { type: 'pair', oldWord: ow[i], newWord: nw[i] };
+      if (i < ow.length) return { type: 'del', word: ow[i] };
+      return { type: 'ins', word: nw[i] };
+    });
+  }
+  const ops = [];
+  let i = on.length, j = nn.length;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && on[i-1] === nn[j-1]) { ops.push({ type: 'eq', oi: i-1, ni: j-1 }); i--; j--; }
+    else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) { ops.push({ type: 'ins', ni: j-1 }); j--; }
+    else { ops.push({ type: 'del', oi: i-1 }); i--; }
+  }
+  ops.reverse();
+  const slots = [];
+  let k = 0;
+  while (k < ops.length) {
+    if (ops[k].type === 'eq') { slots.push({ type: 'eq', word: ow[ops[k].oi] }); k++; }
+    else {
+      const dels = [], ins = [];
+      while (k < ops.length && ops[k].type !== 'eq') {
+        if (ops[k].type === 'del') dels.push(ow[ops[k].oi]);
+        else ins.push(nw[ops[k].ni]);
+        k++;
+      }
+      const nd = dels.map(normWord), ni = ins.map(normWord);
+      const usedI = new Set(), pairMap = new Map();
+      for (let di = 0; di < dels.length; di++) {
+        let bestJ = -1, bestSim = SIM_THRESHOLD;
+        for (let ii = 0; ii < ins.length; ii++) {
+          if (usedI.has(ii)) continue;
+          const s = wordSim(nd[di], ni[ii]);
+          if (s > bestSim) { bestSim = s; bestJ = ii; }
+        }
+        if (bestJ !== -1) { pairMap.set(di, bestJ); usedI.add(bestJ); }
+      }
+      for (let di = 0; di < dels.length; di++) {
+        slots.push(pairMap.has(di)
+          ? { type: 'pair', oldWord: dels[di], newWord: ins[pairMap.get(di)] }
+          : { type: 'del', word: dels[di] });
+      }
+      for (let ii = 0; ii < ins.length; ii++) {
+        if (!usedI.has(ii)) slots.push({ type: 'ins', word: ins[ii] });
+      }
+    }
+  }
+  return slots;
+}
+function renderAlignedDiff(slots) {
+  if (!slots.length) return '';
+  if (!slots.some(s => s.type !== 'eq')) return slots.map(s => escapeHtml(s.word)).join(' ');
+  const n = slots.length;
+  let top = '', bot = '';
+  for (const sl of slots) {
+    if (sl.type === 'eq') {
+      top += `<span class="da-eq">${escapeHtml(sl.word)}</span>`;
+      bot += `<span class="da-eq">${escapeHtml(sl.word)}</span>`;
+    } else if (sl.type === 'del') {
+      top += `<span class="da-del">${escapeHtml(sl.word)}</span>`;
+      bot += `<span></span>`;
+    } else if (sl.type === 'ins') {
+      top += `<span></span>`;
+      bot += `<span class="da-ins">${escapeHtml(sl.word)}</span>`;
+    } else {
+      top += `<span class="da-del">${escapeHtml(sl.oldWord)}</span>`;
+      bot += `<span class="da-ins">${escapeHtml(sl.newWord)}</span>`;
+    }
+  }
+  return `<span class="diff-aligned" style="grid-template-columns:repeat(${n},max-content)">${top}${bot}</span>`;
+}
 function wordDiff(oldText, newText) {
   const ow = (oldText || '').split(/\s+/).filter(Boolean);
   const nw = (newText || '').split(/\s+/).filter(Boolean);
@@ -709,7 +793,7 @@ function renderVersionSegs(segments, currentSegments) {
         ? `<mark class="diff-del">${escapeHtml(s.role || '?')}</mark><mark class="diff-add">${escapeHtml(cur.role || '?')}</mark>`
         : escapeHtml(cur.role || '?');
       const roleClass = newRole;
-      const textHtml = wordDiff(s.text, cur.text).html;
+      const textHtml = renderAlignedDiff(alignedWordDiff(s.text, cur.text));
       const timeHtml = Math.round(s.start) !== Math.round(cur.start)
         ? `<mark class="diff-del">${formatMs(s.start)}</mark><mark class="diff-add">${formatMs(cur.start)}</mark>`
         : formatMs(s.start);

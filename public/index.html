@@ -156,6 +156,10 @@
   .seg.seg-added   { border-left: 2px solid var(--green); padding-left: 6px; opacity: 0.8; }
   .seg-role mark.diff-del, .seg-role mark.diff-add { font-size: inherit; text-transform: uppercase; letter-spacing: 0.05em; }
   .seg-time mark.diff-del, .seg-time mark.diff-add { font-size: inherit; font-family: inherit; font-variant-numeric: tabular-nums; }
+  .diff-aligned { display: inline-grid; column-gap: 0.35em; row-gap: 1px; align-items: baseline; }
+  .da-eq  { color: var(--ink-faint); }
+  .da-del { color: var(--red); text-decoration: line-through; }
+  .da-ins { color: var(--green); }
 
   .empty { padding: 80px 32px; text-align: center; color: var(--ink-faint); }
   .empty .glyph { font-family: 'Fraunces', serif; font-size: 64px; font-style: italic; color: var(--line-2); margin-bottom: 12px; }
@@ -807,6 +811,86 @@ function pairDelIns(dels, ins) {
   }
   return result;
 }
+function alignedWordDiff(oldText, newText) {
+  const ow = (oldText || '').split(/\s+/).filter(Boolean);
+  const nw = (newText || '').split(/\s+/).filter(Boolean);
+  if (!ow.length && !nw.length) return [];
+  if (!ow.length) return nw.map(w => ({ type: 'ins', word: w }));
+  if (!nw.length) return ow.map(w => ({ type: 'del', word: w }));
+  const on = ow.map(normWord), nn = nw.map(normWord);
+  const dp = lcsWords(on, nn);
+  if (!dp) {
+    const len = Math.max(ow.length, nw.length);
+    return Array.from({ length: len }, (_, i) => {
+      if (i < ow.length && i < nw.length) return { type: 'pair', oldWord: ow[i], newWord: nw[i] };
+      if (i < ow.length) return { type: 'del', word: ow[i] };
+      return { type: 'ins', word: nw[i] };
+    });
+  }
+  const ops = [];
+  let i = on.length, j = nn.length;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && on[i-1] === nn[j-1]) { ops.push({ type: 'eq', oi: i-1, ni: j-1 }); i--; j--; }
+    else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) { ops.push({ type: 'ins', ni: j-1 }); j--; }
+    else { ops.push({ type: 'del', oi: i-1 }); i--; }
+  }
+  ops.reverse();
+  const slots = [];
+  let k = 0;
+  while (k < ops.length) {
+    if (ops[k].type === 'eq') { slots.push({ type: 'eq', word: ow[ops[k].oi] }); k++; }
+    else {
+      const dels = [], ins = [];
+      while (k < ops.length && ops[k].type !== 'eq') {
+        if (ops[k].type === 'del') dels.push(ow[ops[k].oi]);
+        else ins.push(nw[ops[k].ni]);
+        k++;
+      }
+      const nd = dels.map(normWord), ni = ins.map(normWord);
+      const usedI = new Set(), pairMap = new Map();
+      for (let di = 0; di < dels.length; di++) {
+        let bestJ = -1, bestSim = SIM_THRESHOLD;
+        for (let ii = 0; ii < ins.length; ii++) {
+          if (usedI.has(ii)) continue;
+          const s = wordSim(nd[di], ni[ii]);
+          if (s > bestSim) { bestSim = s; bestJ = ii; }
+        }
+        if (bestJ !== -1) { pairMap.set(di, bestJ); usedI.add(bestJ); }
+      }
+      for (let di = 0; di < dels.length; di++) {
+        slots.push(pairMap.has(di)
+          ? { type: 'pair', oldWord: dels[di], newWord: ins[pairMap.get(di)] }
+          : { type: 'del', word: dels[di] });
+      }
+      for (let ii = 0; ii < ins.length; ii++) {
+        if (!usedI.has(ii)) slots.push({ type: 'ins', word: ins[ii] });
+      }
+    }
+  }
+  return slots;
+}
+function renderAlignedDiff(slots) {
+  if (!slots.length) return '';
+  if (!slots.some(s => s.type !== 'eq')) return slots.map(s => escapeHtml(s.word)).join(' ');
+  const n = slots.length;
+  let top = '', bot = '';
+  for (const sl of slots) {
+    if (sl.type === 'eq') {
+      top += `<span class="da-eq">${escapeHtml(sl.word)}</span>`;
+      bot += `<span class="da-eq">${escapeHtml(sl.word)}</span>`;
+    } else if (sl.type === 'del') {
+      top += `<span class="da-del">${escapeHtml(sl.word)}</span>`;
+      bot += `<span></span>`;
+    } else if (sl.type === 'ins') {
+      top += `<span></span>`;
+      bot += `<span class="da-ins">${escapeHtml(sl.word)}</span>`;
+    } else {
+      top += `<span class="da-del">${escapeHtml(sl.oldWord)}</span>`;
+      bot += `<span class="da-ins">${escapeHtml(sl.newWord)}</span>`;
+    }
+  }
+  return `<span class="diff-aligned" style="grid-template-columns:repeat(${n},max-content)">${top}${bot}</span>`;
+}
 function wordDiff(oldText, newText) {
   const ow = (oldText || '').split(/\s+/).filter(Boolean);
   const nw = (newText || '').split(/\s+/).filter(Boolean);
@@ -875,7 +959,7 @@ function renderVersionSegs(segments, currentSegments) {
       parts.push(`<div class="seg seg-added"><span class="seg-time">${formatMs(n.start)}</span><span class="seg-role ${n.role || 'unknown'}">${escapeHtml(n.role || '?')}</span><span class="seg-text"><mark class="diff-add">${escapeHtml(n.text)}</mark></span></div>`);
     }
     if (cur) {
-      const textHtml = wordDiff(s.text, cur.text).html;
+      const textHtml = renderAlignedDiff(alignedWordDiff(s.text, cur.text));
       const oldRole = s.role || 'unknown', newRole = cur.role || 'unknown';
       const roleHtml = oldRole !== newRole
         ? `<span class="seg-role"><mark class="diff-del">${escapeHtml(s.role || '?')}</mark><mark class="diff-add">${escapeHtml(cur.role || '?')}</mark></span>`
@@ -1053,6 +1137,10 @@ function buildExportHtml(docs, filename, termsMap) {
   .ver-h { font-size: 9pt; color: #666; margin-bottom: 3pt; }
   .ver-h b { color: #111; font-weight: 600; }
   .ver-submitted-tag { color: #b86b00; font-size: 8pt; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .diff-aligned { display: inline-grid; column-gap: 0.3em; row-gap: 1pt; align-items: baseline; }
+  .da-eq  { color: #aaa; }
+  .da-del { color: #b8231f; text-decoration: line-through; }
+  .da-ins { color: #1a5e1a; }
   mark { background: #fff48a; color: #111; padding: 0 1pt; border-radius: 1pt; }
   .row-key mark { background: #fff48a; color: #111; }
   mark.diff-del { background: transparent; color: #b8231f; text-decoration: line-through; padding: 0; border-radius: 0; font-style: normal; }
@@ -1067,6 +1155,9 @@ function buildExportHtml(docs, filename, termsMap) {
     mark { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff48a !important; }
     mark.diff-del { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: transparent !important; color: #b8231f !important; text-decoration: line-through !important; }
     mark.diff-add { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #d6f0d6 !important; color: #1a5e1a !important; }
+    .da-del { -webkit-print-color-adjust: exact; print-color-adjust: exact; color: #b8231f !important; text-decoration: line-through !important; }
+    .da-ins { -webkit-print-color-adjust: exact; print-color-adjust: exact; color: #1a5e1a !important; }
+    .da-eq  { color: #aaa !important; }
     .export-comment { background: #fdfaf5; border-left: 2pt solid #ffb347; padding: 6pt 10pt; margin-top: 8pt; font-size: 9.5pt; color: #333; }
   }
 </style></head><body>
@@ -1139,7 +1230,7 @@ function exportVersion(v, terms, d) {
         parts.push(`<div class="seg seg-added"><span class="seg-time">${formatMs(n.start)}</span><span class="seg-role ${n.role || 'unknown'}">${escapeHtml(n.role || '?')}</span><span class="seg-text"><mark class="diff-add">${escapeHtml(n.text)}</mark></span></div>`);
       }
       if (cur) {
-        const textHtml = wordDiff(s.text, cur.text).html;
+        const textHtml = renderAlignedDiff(alignedWordDiff(s.text, cur.text));
         const oldRole = s.role || 'unknown', newRole = cur.role || 'unknown';
         const roleHtml = oldRole !== newRole
           ? `<span class="seg-role"><mark class="diff-del">${escapeHtml(s.role || '?')}</mark><mark class="diff-add">${escapeHtml(cur.role || '?')}</mark></span>`
