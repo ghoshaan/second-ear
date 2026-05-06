@@ -19,6 +19,7 @@
     --ink-faint: #4b574f;
     --amber:     #ffb347;
     --red:       #e57373;
+    --green:     #66bb6a;
     --pilot:     #6fcf97;
     --atc:       #ffb347;
     --hl-bg:     #3d2a07;
@@ -113,6 +114,7 @@
   .version-block.current .version-block-desc { color: var(--ink); }
   .version-block.prior { background: rgba(229,115,115,0.05); padding: 8px 10px; border-radius: 2px; margin: 4px -4px; }
   mark.diff-del { background: rgba(229,115,115,0.3); color: var(--red); border-radius: 1px; padding: 0; font-style: normal; }
+  mark.diff-add { background: rgba(102,187,106,0.25); color: var(--green); border-radius: 1px; padding: 0; font-style: normal; }
 
   .empty { padding: 80px 32px; text-align: center; color: var(--ink-faint); }
   .empty .glyph { font-family: 'Fraunces', serif; font-size: 64px; font-style: italic; color: var(--line-2); margin-bottom: 12px; }
@@ -597,32 +599,78 @@ function lcsWords(a, b) {
 function charDiff(oldW, newW) {
   const oc = [...oldW], nc = [...newW];
   const m = oc.length, n = nc.length;
-  if (m * n > 2000) return `<mark class="diff-del">${escapeHtml(oldW)}</mark>`;
-  const dp = Array.from({length: m + 1}, () => new Uint8Array(n + 1));
+  if (m * n > 10000) {
+    return `<mark class="diff-del">${escapeHtml(oldW)}</mark><mark class="diff-add">${escapeHtml(newW)}</mark>`;
+  }
+  const dp = Array.from({length: m + 1}, () => new Uint16Array(n + 1));
   for (let i = 1; i <= m; i++)
     for (let j = 1; j <= n; j++)
       dp[i][j] = oc[i-1] === nc[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
-  const matched = new Set();
+  const ops = [];
   let i = m, j = n;
-  while (i > 0 && j > 0) {
-    if (oc[i-1] === nc[j-1]) { matched.add(i-1); i--; j--; }
-    else if (dp[i-1][j] >= dp[i][j-1]) i--;
-    else j--;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oc[i-1] === nc[j-1]) { ops.push({ type: 'eq', c: oc[i-1] }); i--; j--; }
+    else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) { ops.push({ type: 'ins', c: nc[j-1] }); j--; }
+    else { ops.push({ type: 'del', c: oc[i-1] }); i--; }
   }
-  let html = '', inMark = false;
-  for (let k = 0; k < oc.length; k++) {
-    const del = !matched.has(k);
-    if (del && !inMark)  { html += '<mark class="diff-del">'; inMark = true; }
-    if (!del && inMark)  { html += '</mark>'; inMark = false; }
-    html += escapeHtml(oc[k]);
+  ops.reverse();
+  let html = '', cur = 'eq';
+  for (const { type, c } of ops) {
+    if (type !== cur) {
+      if (cur !== 'eq') html += '</mark>';
+      if (type !== 'eq') html += `<mark class="diff-${type}">`;
+      cur = type;
+    }
+    html += escapeHtml(c);
   }
-  if (inMark) html += '</mark>';
+  if (cur !== 'eq') html += '</mark>';
   return html;
+}
+function wordSim(a, b) {
+  if (!a.length || !b.length) return 0;
+  if (a === b) return 1;
+  const m = a.length, n = b.length;
+  if (m * n > 10000) return 0;
+  let prev = new Uint16Array(n + 1), curr = new Uint16Array(n + 1);
+  for (let ii = 1; ii <= m; ii++) {
+    for (let jj = 1; jj <= n; jj++)
+      curr[jj] = a[ii-1] === b[jj-1] ? prev[jj-1] + 1 : Math.max(prev[jj], curr[jj-1]);
+    [prev, curr] = [curr, prev]; curr.fill(0);
+  }
+  return 2 * prev[n] / (m + n);
+}
+const SIM_THRESHOLD = 0.35;
+function pairDelIns(dels, ins) {
+  if (!dels.length) return ins.map(w => `<mark class="diff-add">${escapeHtml(w)}</mark>`);
+  if (!ins.length) return dels.map(w => `<mark class="diff-del">${escapeHtml(w)}</mark>`);
+  const nd = dels.map(normWord), ni = ins.map(normWord);
+  const usedI = new Set();
+  const pairMap = new Map();
+  for (let di = 0; di < dels.length; di++) {
+    let bestJ = -1, bestSim = SIM_THRESHOLD;
+    for (let ii = 0; ii < ins.length; ii++) {
+      if (usedI.has(ii)) continue;
+      const s = wordSim(nd[di], ni[ii]);
+      if (s > bestSim) { bestSim = s; bestJ = ii; }
+    }
+    if (bestJ !== -1) { pairMap.set(di, bestJ); usedI.add(bestJ); }
+  }
+  const result = [];
+  for (let di = 0; di < dels.length; di++) {
+    result.push(pairMap.has(di)
+      ? charDiff(dels[di], ins[pairMap.get(di)])
+      : `<mark class="diff-del">${escapeHtml(dels[di])}</mark>`);
+  }
+  for (let ii = 0; ii < ins.length; ii++) {
+    if (!usedI.has(ii)) result.push(`<mark class="diff-add">${escapeHtml(ins[ii])}</mark>`);
+  }
+  return result;
 }
 function wordDiff(oldText, newText) {
   const ow = (oldText || '').split(/\s+/).filter(Boolean);
   const nw = (newText || '').split(/\s+/).filter(Boolean);
-  if (!ow.length) return { html: '', pct: null };
+  if (!ow.length && !nw.length) return { html: '', pct: null };
+  if (!ow.length) return { html: nw.map(w => `<mark class="diff-add">${escapeHtml(w)}</mark>`).join(' '), pct: null };
   if (!nw.length) return { html: ow.map(w => `<mark class="diff-del">${escapeHtml(w)}</mark>`).join(' '), pct: 100 };
   const on = ow.map(normWord);
   const nn = nw.map(normWord);
@@ -630,23 +678,29 @@ function wordDiff(oldText, newText) {
   if (!dp) return { html: escapeHtml(oldText), pct: null };
   const lcsLen = dp[on.length][nn.length];
   const pct = Math.round((on.length - lcsLen) / on.length * 100);
-  const matchedOld = new Set();
-  const newMatched = new Array(nw.length).fill(false);
-  let ii = on.length, jj = nn.length;
-  while (ii > 0 && jj > 0) {
-    if (on[ii-1] === nn[jj-1]) { matchedOld.add(ii-1); newMatched[jj-1] = true; ii--; jj--; }
-    else if (dp[ii-1][jj] >= dp[ii][jj-1]) ii--;
-    else jj--;
+  const ops = [];
+  let i = on.length, j = nn.length;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && on[i-1] === nn[j-1]) { ops.push({ type: 'eq', oi: i-1, ni: j-1 }); i--; j--; }
+    else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) { ops.push({ type: 'ins', ni: j-1 }); j--; }
+    else { ops.push({ type: 'del', oi: i-1 }); i--; }
   }
-  const unmatchedNew = nw.filter((_, k) => !newMatched[k]);
-  let ni = 0;
-  return {
-    html: ow.map((w, idx) => {
-      if (matchedOld.has(idx)) return escapeHtml(w);
-      return ni < unmatchedNew.length ? charDiff(w, unmatchedNew[ni++]) : `<mark class="diff-del">${escapeHtml(w)}</mark>`;
-    }).join(' '),
-    pct,
-  };
+  ops.reverse();
+  const parts = [];
+  let k = 0;
+  while (k < ops.length) {
+    if (ops[k].type === 'eq') { parts.push(escapeHtml(ow[ops[k].oi])); k++; }
+    else {
+      const dels = [], ins = [];
+      while (k < ops.length && ops[k].type !== 'eq') {
+        if (ops[k].type === 'del') dels.push(ow[ops[k].oi]);
+        else ins.push(nw[ops[k].ni]);
+        k++;
+      }
+      parts.push(...pairDelIns(dels, ins));
+    }
+  }
+  return { html: parts.join(' '), pct };
 }
 function renderVersionSegs(segments, currentSegments) {
   if (!segments || !segments.length) return '';

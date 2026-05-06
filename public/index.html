@@ -19,6 +19,7 @@
     --ink-faint: #4b574f;
     --amber:     #ffb347;
     --red:       #e57373;
+    --green:     #66bb6a;
     --pilot:     #6fcf97;
     --atc:       #ffb347;
     --hl-bg:     #3d2a07;
@@ -150,6 +151,7 @@
   .version-block.current .version-block-desc { color: var(--ink); }
   .version-block.prior { background: rgba(229,115,115,0.05); padding: 8px 10px; border-radius: 2px; margin: 4px -4px; }
   mark.diff-del { background: rgba(229,115,115,0.3); color: var(--red); border-radius: 1px; padding: 0; font-style: normal; }
+  mark.diff-add { background: rgba(102,187,106,0.25); color: var(--green); border-radius: 1px; padding: 0; font-style: normal; }
 
   .empty { padding: 80px 32px; text-align: center; color: var(--ink-faint); }
   .empty .glyph { font-family: 'Fraunces', serif; font-size: 64px; font-style: italic; color: var(--line-2); margin-bottom: 12px; }
@@ -266,6 +268,11 @@
         <button class="pill" data-history="edited">edited</button>
       </div>
       <div class="group">
+        <span class="sep">match</span>
+        <button class="pill active" data-match="any">any</button>
+        <button class="pill" data-match="word">whole word</button>
+      </div>
+      <div class="group">
         <span class="sep">batch</span>
         <select class="facet-select" id="f-batch"></select>
         <button class="facet-clear" data-clear="batch" title="clear">×</button>
@@ -339,6 +346,7 @@ let activeReview = 'all';
 let activeHistory = 'all';
 let activeRead = 'all';
 let activeSort = 'relevance'; // <-- ADD THIS
+let wholeWord = false;
 const facetSel = { batch: '', annotator: '', reviewer: '' };
 let currentResults = null; // <-- ADD THIS BACK
 const SESSION_KEY = 'atc-search-key-v1';
@@ -748,37 +756,85 @@ function lcsWords(a, b) {
   return dp;
 }
 const normWord = w => w.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
-// Character-level LCS diff between two words — highlights only the changed chars.
+// Character-level LCS diff — shows deleted chars (diff-del) and inserted chars (diff-add).
 function charDiff(oldW, newW) {
   const oc = [...oldW], nc = [...newW];
   const m = oc.length, n = nc.length;
-  if (m * n > 2000) return `<mark class="diff-del">${escapeHtml(oldW)}</mark>`;
-  const dp = Array.from({length: m + 1}, () => new Uint8Array(n + 1));
+  if (m * n > 10000) {
+    return `<mark class="diff-del">${escapeHtml(oldW)}</mark><mark class="diff-add">${escapeHtml(newW)}</mark>`;
+  }
+  const dp = Array.from({length: m + 1}, () => new Uint16Array(n + 1));
   for (let i = 1; i <= m; i++)
     for (let j = 1; j <= n; j++)
       dp[i][j] = oc[i-1] === nc[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
-  const matched = new Set();
+  const ops = [];
   let i = m, j = n;
-  while (i > 0 && j > 0) {
-    if (oc[i-1] === nc[j-1]) { matched.add(i-1); i--; j--; }
-    else if (dp[i-1][j] >= dp[i][j-1]) i--;
-    else j--;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oc[i-1] === nc[j-1]) { ops.push({ type: 'eq', c: oc[i-1] }); i--; j--; }
+    else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) { ops.push({ type: 'ins', c: nc[j-1] }); j--; }
+    else { ops.push({ type: 'del', c: oc[i-1] }); i--; }
   }
-  // Group consecutive deleted chars into one <mark> to avoid per-char padding artifacts
-  let html = '', inMark = false;
-  for (let k = 0; k < oc.length; k++) {
-    const del = !matched.has(k);
-    if (del && !inMark)  { html += '<mark class="diff-del">'; inMark = true; }
-    if (!del && inMark)  { html += '</mark>'; inMark = false; }
-    html += escapeHtml(oc[k]);
+  ops.reverse();
+  let html = '', cur = 'eq';
+  for (const { type, c } of ops) {
+    if (type !== cur) {
+      if (cur !== 'eq') html += '</mark>';
+      if (type !== 'eq') html += `<mark class="diff-${type}">`;
+      cur = type;
+    }
+    html += escapeHtml(c);
   }
-  if (inMark) html += '</mark>';
+  if (cur !== 'eq') html += '</mark>';
   return html;
+}
+// Similarity score [0,1] between two normalised word strings using LCS length.
+function wordSim(a, b) {
+  if (!a.length || !b.length) return 0;
+  if (a === b) return 1;
+  const m = a.length, n = b.length;
+  if (m * n > 10000) return 0;
+  let prev = new Uint16Array(n + 1), curr = new Uint16Array(n + 1);
+  for (let ii = 1; ii <= m; ii++) {
+    for (let jj = 1; jj <= n; jj++)
+      curr[jj] = a[ii-1] === b[jj-1] ? prev[jj-1] + 1 : Math.max(prev[jj], curr[jj-1]);
+    [prev, curr] = [curr, prev]; curr.fill(0);
+  }
+  return 2 * prev[n] / (m + n);
+}
+// Given a run of deleted and inserted words, pair similar ones for charDiff;
+// dissimilar or unpaired words are shown as full del/add marks.
+const SIM_THRESHOLD = 0.35;
+function pairDelIns(dels, ins) {
+  if (!dels.length) return ins.map(w => `<mark class="diff-add">${escapeHtml(w)}</mark>`);
+  if (!ins.length) return dels.map(w => `<mark class="diff-del">${escapeHtml(w)}</mark>`);
+  const nd = dels.map(normWord), ni = ins.map(normWord);
+  const usedI = new Set();
+  const pairMap = new Map();
+  for (let di = 0; di < dels.length; di++) {
+    let bestJ = -1, bestSim = SIM_THRESHOLD;
+    for (let ii = 0; ii < ins.length; ii++) {
+      if (usedI.has(ii)) continue;
+      const s = wordSim(nd[di], ni[ii]);
+      if (s > bestSim) { bestSim = s; bestJ = ii; }
+    }
+    if (bestJ !== -1) { pairMap.set(di, bestJ); usedI.add(bestJ); }
+  }
+  const result = [];
+  for (let di = 0; di < dels.length; di++) {
+    result.push(pairMap.has(di)
+      ? charDiff(dels[di], ins[pairMap.get(di)])
+      : `<mark class="diff-del">${escapeHtml(dels[di])}</mark>`);
+  }
+  for (let ii = 0; ii < ins.length; ii++) {
+    if (!usedI.has(ii)) result.push(`<mark class="diff-add">${escapeHtml(ins[ii])}</mark>`);
+  }
+  return result;
 }
 function wordDiff(oldText, newText) {
   const ow = (oldText || '').split(/\s+/).filter(Boolean);
   const nw = (newText || '').split(/\s+/).filter(Boolean);
-  if (!ow.length) return { html: '', pct: null };
+  if (!ow.length && !nw.length) return { html: '', pct: null };
+  if (!ow.length) return { html: nw.map(w => `<mark class="diff-add">${escapeHtml(w)}</mark>`).join(' '), pct: null };
   if (!nw.length) return { html: ow.map(w => `<mark class="diff-del">${escapeHtml(w)}</mark>`).join(' '), pct: 100 };
   const on = ow.map(normWord);
   const nn = nw.map(normWord);
@@ -786,26 +842,31 @@ function wordDiff(oldText, newText) {
   if (!dp) return { html: escapeHtml(oldText), pct: null };
   const lcsLen = dp[on.length][nn.length];
   const pct = Math.round((on.length - lcsLen) / on.length * 100);
-  // Backtrack — track which new words were matched too
-  const matchedOld = new Set();
-  const newMatched = new Array(nw.length).fill(false);
+  // Build full edit op sequence by backtracking the LCS table.
+  const ops = [];
   let i = on.length, j = nn.length;
-  while (i > 0 && j > 0) {
-    if (on[i-1] === nn[j-1]) { matchedOld.add(i-1); newMatched[j-1] = true; i--; j--; }
-    else if (dp[i-1][j] >= dp[i][j-1]) i--;
-    else j--;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && on[i-1] === nn[j-1]) { ops.push({ type: 'eq', oi: i-1, ni: j-1 }); i--; j--; }
+    else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) { ops.push({ type: 'ins', ni: j-1 }); j--; }
+    else { ops.push({ type: 'del', oi: i-1 }); i--; }
   }
-  // Pair unmatched old words with unmatched new words (in order) for char-level diff.
-  // Extra old words with no new counterpart are shown as whole-word deletions.
-  const unmatchedNew = nw.filter((_, k) => !newMatched[k]);
-  let ni = 0;
-  return {
-    html: ow.map((w, idx) => {
-      if (matchedOld.has(idx)) return escapeHtml(w);
-      return ni < unmatchedNew.length ? charDiff(w, unmatchedNew[ni++]) : `<mark class="diff-del">${escapeHtml(w)}</mark>`;
-    }).join(' '),
-    pct,
-  };
+  ops.reverse();
+  // Render: group consecutive del/ins runs, pair similar words within each run.
+  const parts = [];
+  let k = 0;
+  while (k < ops.length) {
+    if (ops[k].type === 'eq') { parts.push(escapeHtml(ow[ops[k].oi])); k++; }
+    else {
+      const dels = [], ins = [];
+      while (k < ops.length && ops[k].type !== 'eq') {
+        if (ops[k].type === 'del') dels.push(ow[ops[k].oi]);
+        else ins.push(nw[ops[k].ni]);
+        k++;
+      }
+      parts.push(...pairDelIns(dels, ins));
+    }
+  }
+  return { html: parts.join(' '), pct };
 }
 function renderVersionSegs(segments, currentSegments) {
   if (!segments || !segments.length) return '';
@@ -858,8 +919,11 @@ function escapeAttr(s) { return escapeHtml(s).replace(/`/g, '&#96;'); }
 function highlight(text, terms) {
   const safe = escapeHtml(text || '');
   if (!terms || !terms.length) return safe;
-  const pattern = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).filter(Boolean).join('|');
-  if (!pattern) return safe;
+  const escaped = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).filter(Boolean);
+  if (!escaped.length) return safe;
+  const pattern = wholeWord
+    ? escaped.map(t => `\\b${t}\\b`).join('|')
+    : escaped.join('|');
   try { return safe.replace(new RegExp(`(${pattern})`, 'gi'), '<mark>$1</mark>'); }
   catch { return safe; }
 }
@@ -964,17 +1028,24 @@ function buildExportHtml(docs, filename, termsMap) {
   .seg-role.unknown { color: #999; }
   .seg-text { color: #111; }
   .versions-h { font-size: 9pt; font-weight: 600; margin: 14pt 0 4pt; color: #555; text-transform: uppercase; letter-spacing: 0.06em; }
+  .segs-label { font-size: 8.5pt; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #777; margin: 8pt 0 3pt; }
+  .segs-label.label-reviewed { color: #2a7a3a; }
+  .segs-label.label-submitted { color: #b86b00; }
   .ver { border-left: 2pt solid #ccc; padding: 4pt 0 4pt 10pt; margin: 6pt 0; page-break-inside: avoid; break-inside: avoid; }
+  .ver.ver-submitted { border-left-color: #ffb347; background: #fffbf4; padding: 4pt 8pt 4pt 10pt; }
   .ver-h { font-size: 9pt; color: #666; margin-bottom: 3pt; }
   .ver-h b { color: #111; font-weight: 600; }
+  .ver-submitted-badge { display: inline-block; background: #fff0d0; color: #b86b00; border: 0.5pt solid #ffb347; border-radius: 2pt; font-size: 8pt; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 0 4pt; margin-right: 5pt; vertical-align: middle; }
   mark { background: #fff48a; color: #111; padding: 0 1pt; border-radius: 1pt; }
   .row-key mark { background: #fff48a; color: #111; }
   mark.diff-del { background: #fde0e0; color: #b8231f; padding: 0; border-radius: 1pt; font-style: normal; }
+  mark.diff-add { background: #d6f0d6; color: #1a5e1a; padding: 0; border-radius: 1pt; font-style: normal; }
   .ver-pct { color: #b8231f; opacity: 0.75; }
   @media print {
     .row, .ver { break-inside: avoid; page-break-inside: avoid; }
     mark { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff48a !important; }
     mark.diff-del { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fde0e0 !important; color: #b8231f !important; }
+    mark.diff-add { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #d6f0d6 !important; color: #1a5e1a !important; }
     .export-comment { background: #fdfaf5; border-left: 2pt solid #ffb347; padding: 6pt 10pt; margin-top: 8pt; font-size: 9.5pt; color: #333; }
   }
 </style></head><body>
@@ -996,8 +1067,19 @@ function exportRow(d, terms) {
     `<div class="seg"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span><span class="seg-text">${highlight(s.text, terms)}</span></div>`
   ).join('');
 
+  const hasHistory = d.versions && d.versions.length && hasRealHistory(d.versions, d);
+  let segsLabel = '';
+  if (hasHistory) {
+    if (d.reviewed) {
+      const by = d.reviewedBy ? ` · ${escapeHtml(d.reviewedBy)}` : '';
+      segsLabel = `<div class="segs-label label-reviewed">Reviewer's version${by}</div>`;
+    } else {
+      segsLabel = `<div class="segs-label label-submitted">Labeler's transcript</div>`;
+    }
+  }
+
   let versionsHtml = '';
-  if (d.versions && d.versions.length && hasRealHistory(d.versions, d)) {
+  if (hasHistory) {
     const verBlocks = [...d.versions].reverse().map(v => exportVersion(v, terms, d)).join('');
     versionsHtml = `<div class="versions-h">Edit history (${d.versions.length} prior version${d.versions.length === 1 ? '' : 's'})</div>${verBlocks}`;
   }
@@ -1015,24 +1097,25 @@ function exportRow(d, terms) {
   return `<div class="row">
     <div class="row-key">${keyEl}</div>
     <div class="row-meta">${review}${batch}${labeler}${facets}<span>${dur}</span></div>
-    <div class="segs">${segs}</div>
+    ${segsLabel}<div class="segs">${segs}</div>
     ${versionsHtml}
-    ${commentHtml} <!-- AND ADD THIS HERE -->
+    ${commentHtml}
   </div>`;
 }
 
 function exportVersion(v, terms, d) {
   const date = v.snapshotDate || '—';
-  let desc = v.changeType === 'initial' ? `initial · labeler ${v.annotator || '?'}` :
+  const isSubmitted = !v.reviewed && d.reviewed;
+  let desc = v.changeType === 'initial' ? `initial · labeler ${escapeHtml(v.annotator || '?')}` :
              v.changeType === 'content-only' ? 'transcript revised' :
              v.changeType === 'state-only' ? (v.reviewed ? 'approved' : 'review status changed') :
              v.changeType === 'state-and-content' ? (v.reviewed ? 'approved · transcript revised' : 'transcript revised · status changed') :
-             (v.changeType || '');
-  desc = escapeHtml(desc);
+             escapeHtml(v.changeType || '');
   if (v.changeType !== 'state-only' && (v.changeType !== 'initial' || !v.reviewed)) {
     const { pct } = wordDiff(v.transcript || '', d.transcript || '');
     if (pct !== null) desc += ` · <span class="ver-pct">${pct}% changed</span>`;
   }
+  const badge = isSubmitted ? `<span class="ver-submitted-badge">submitted for review</span>` : '';
   const curByStart = new Map((d.segments || []).map(s => [s.start, s]));
   const segs = (v.segments || []).map(s => {
     const cur = curByStart.get(s.start);
@@ -1040,7 +1123,7 @@ function exportVersion(v, terms, d) {
     return `<div class="seg"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span><span class="seg-text">${textHtml}</span></div>`;
   }).join('');
   const segsHtml = v.changeType !== 'state-only' && segs ? `<div class="segs">${segs}</div>` : '';
-  return `<div class="ver"><div class="ver-h"><b>${escapeHtml(date)}</b> · ${desc}</div>${segsHtml}</div>`;
+  return `<div class="ver${isSubmitted ? ' ver-submitted' : ''}"><div class="ver-h">${badge}<b>${escapeHtml(date)}</b> · ${desc}</div>${segsHtml}</div>`;
 }
 
 // ====================== Wire up ======================
@@ -1143,6 +1226,14 @@ document.querySelectorAll('.pill[data-history]').forEach(btn => {
     document.querySelectorAll('.pill[data-history]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     activeHistory = btn.dataset.history;
+    rerun();
+  });
+});
+document.querySelectorAll('.pill[data-match]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.pill[data-match]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    wholeWord = btn.dataset.match === 'word';
     rerun();
   });
 });
