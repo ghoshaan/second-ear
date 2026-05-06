@@ -876,9 +876,10 @@ function wordDiff(oldText, newText) {
 }
 function renderVersionSegs(segments, currentSegments) {
   if (!segments || !segments.length) return '';
-  const curByStart = new Map((currentSegments || []).map(s => [Math.round(s.start), s]));
-  return `<div class="segments">${segments.map(s => {
-    const cur = curByStart.get(Math.round(s.start));
+  const cur$ = currentSegments || [];
+  const curByStart = new Map(cur$.map(s => [Math.round(s.start), s]));
+  return `<div class="segments">${segments.map((s, idx) => {
+    const cur = curByStart.get(Math.round(s.start)) || cur$[idx];
     const textHtml = cur ? wordDiff(s.text, cur.text).html : escapeHtml(s.text);
     return `<div class="seg"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span><span class="seg-text">${textHtml}</span></div>`;
   }).join('')}</div>`;
@@ -1122,9 +1123,10 @@ function exportVersion(v, terms, d) {
     if (pct !== null) desc += ` · <span class="ver-pct">${pct}% changed</span>`;
   }
   const badge = isSubmitted ? `<span class="ver-submitted-badge">submitted for review</span>` : '';
-  const curByStart = new Map((d.segments || []).map(s => [Math.round(s.start), s]));
-  const segs = (v.segments || []).map(s => {
-    const cur = curByStart.get(Math.round(s.start));
+  const dSegs = d.segments || [];
+  const curByStart = new Map(dSegs.map(s => [Math.round(s.start), s]));
+  const segs = (v.segments || []).map((s, idx) => {
+    const cur = curByStart.get(Math.round(s.start)) || dSegs[idx];
     const textHtml = cur ? wordDiff(s.text, cur.text).html : highlight(s.text, terms);
     return `<div class="seg"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span><span class="seg-text">${textHtml}</span></div>`;
   }).join('');

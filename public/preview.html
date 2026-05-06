@@ -705,9 +705,10 @@ function wordDiff(oldText, newText) {
 }
 function renderVersionSegs(segments, currentSegments) {
   if (!segments || !segments.length) return '';
-  const curByStart = new Map((currentSegments || []).map(s => [Math.round(s.start), s]));
-  return `<div class="segments">${segments.map(s => {
-    const cur = curByStart.get(Math.round(s.start));
+  const cur$ = currentSegments || [];
+  const curByStart = new Map(cur$.map(s => [Math.round(s.start), s]));
+  return `<div class="segments">${segments.map((s, idx) => {
+    const cur = curByStart.get(Math.round(s.start)) || cur$[idx];
     const textHtml = cur ? wordDiff(s.text, cur.text).html : escapeHtml(s.text);
     return `<div class="seg"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span><span class="seg-text">${textHtml}</span></div>`;
   }).join('')}</div>`;
