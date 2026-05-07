@@ -283,6 +283,7 @@
         <thead>
           <tr style="border-bottom: 1px solid var(--line); text-align: left;">
             <th data-sort="annotator" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Labeler <span class="sort-indicator">⇅</span></th>
+            <th data-sort="concernScore" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Concern <span class="sort-indicator">⇅</span></th>
             <th data-sort="submitted" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Submitted <span class="sort-indicator">⇅</span></th>
             <th data-sort="approved" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Approved <span class="sort-indicator">⇅</span></th>
             <th data-sort="withHistory" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Has History <span class="sort-indicator">⇅</span></th>
@@ -308,6 +309,7 @@
         <thead>
           <tr style="border-bottom: 1px solid var(--line); text-align: left;">
             <th data-sort="reviewer" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Reviewer <span class="sort-indicator">⇅</span></th>
+            <th data-sort="concernScore" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Concern <span class="sort-indicator">⇅</span></th>
             <th data-sort="approved" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Approved <span class="sort-indicator">⇅</span></th>
             <th data-sort="withHistory" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Has History <span class="sort-indicator">⇅</span></th>
             <th data-sort="avgPct" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Avg % Changed <span class="sort-indicator">⇅</span></th>
@@ -331,6 +333,7 @@
         <thead>
           <tr style="border-bottom: 1px solid var(--line); text-align: left;">
             <th data-sort="annotator" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Labeler <span class="sort-indicator">⇅</span></th>
+            <th data-sort="concernScore" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Concern <span class="sort-indicator">⇅</span></th>
             <th data-sort="submitted" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Submitted <span class="sort-indicator">⇅</span></th>
             <th data-sort="approved" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Approved <span class="sort-indicator">⇅</span></th>
             <th data-sort="withHistory" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Has History <span class="sort-indicator">⇅</span></th>
@@ -1490,7 +1493,7 @@ $('f-sort').addEventListener('change', (e) => {
 });
 
 // ====================== Labeler Stats ======================
-let labelerSortCol = 'avgPct', labelerSortDir = 'desc';
+let labelerSortCol = 'concernScore', labelerSortDir = 'desc';
 
 function buildRoleSets() {
   const annotatorIds = new Set(), reviewerIds = new Set();
@@ -1526,14 +1529,19 @@ function computeLabelerStats(sortCol, sortDir) {
     if (data.pctChanges.length === 0) continue;
     const withHistory = data.pctChanges.length;
     const avgPct = (data.pctChanges.reduce((a, b) => a + b, 0) / withHistory).toFixed(1);
-    result.push({ annotator, ...data, withHistory, avgPct });
+    const concernScore = +(
+      (data.roleFlips  / withHistory) * 10 +
+      parseFloat(avgPct) +
+      (data.timeShifts / withHistory) * 10 +
+      (data.capsChange / withHistory) * 5
+    ).toFixed(1);
+    result.push({ annotator, ...data, withHistory, avgPct, concernScore });
   }
 
   result.sort((a, b) => {
     let aVal = a[sortCol], bVal = b[sortCol];
     if (sortCol === 'avgPct') {
-      aVal = a.avgPct !== null ? parseFloat(a.avgPct) : -1;
-      bVal = b.avgPct !== null ? parseFloat(b.avgPct) : -1;
+      aVal = parseFloat(a.avgPct); bVal = parseFloat(b.avgPct);
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     }
     if (sortCol === 'annotator') {
@@ -1544,12 +1552,19 @@ function computeLabelerStats(sortCol, sortDir) {
   return result;
 }
 
+function concernColor(score) {
+  if (score >= 60) return 'var(--red)';
+  if (score >= 25) return 'var(--amber)';
+  return 'var(--pilot)';
+}
+
 function renderLabelerStats() {
   const stats = computeLabelerStats(labelerSortCol, labelerSortDir);
   const tbody = $('stats-tbody');
   tbody.innerHTML = stats.map(s => `
     <tr>
       <td><span class="copy-id" data-copy="${escapeAttr(s.annotator)}" title="click to copy">${escapeHtml(s.annotator)}</span></td>
+      <td style="text-align: right; font-weight: 500; color: ${concernColor(s.concernScore)};">${s.concernScore}</td>
       <td style="text-align: right;">${s.submitted}</td>
       <td style="text-align: right;">${s.approved}</td>
       <td style="text-align: right;">${s.withHistory}</td>
@@ -1575,7 +1590,7 @@ $('btn-close-stats').addEventListener('click', () => {
 });
 
 // ====================== Reviewer Stats ======================
-let reviewerSortCol = 'avgPct', reviewerSortDir = 'asc';
+let reviewerSortCol = 'concernScore', reviewerSortDir = 'desc';
 
 function computeChangeTypeBreakdown() {
   const counts = { 'state-only': 0, 'content-only': 0, 'state-and-content': 0 };
@@ -1613,14 +1628,19 @@ function computeReviewerStats(sortCol, sortDir) {
     if (data.pctChanges.length === 0) continue;
     const withHistory = data.pctChanges.length;
     const avgPct = (data.pctChanges.reduce((a, b) => a + b, 0) / withHistory).toFixed(1);
-    result.push({ reviewer, ...data, withHistory, avgPct });
+    const concernScore = +(
+      (data.roleFlips  / withHistory) * 10 +
+      parseFloat(avgPct) +
+      (data.timeShifts / withHistory) * 10 +
+      (data.capsChange / withHistory) * 5
+    ).toFixed(1);
+    result.push({ reviewer, ...data, withHistory, avgPct, concernScore });
   }
 
   result.sort((a, b) => {
     let aVal = a[sortCol], bVal = b[sortCol];
     if (sortCol === 'avgPct') {
-      aVal = a.avgPct !== null ? parseFloat(a.avgPct) : Infinity;
-      bVal = b.avgPct !== null ? parseFloat(b.avgPct) : Infinity;
+      aVal = parseFloat(a.avgPct); bVal = parseFloat(b.avgPct);
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     }
     if (sortCol === 'reviewer') {
@@ -1645,6 +1665,7 @@ function renderReviewerStats() {
   tbody.innerHTML = stats.map(s => `
     <tr>
       <td><span class="copy-id" data-copy="${escapeAttr(s.reviewer)}" title="click to copy">${escapeHtml(s.reviewer)}</span></td>
+      <td style="text-align: right; font-weight: 500; color: ${concernColor(s.concernScore)};">${s.concernScore}</td>
       <td style="text-align: right;">${s.approved}</td>
       <td style="text-align: right;">${s.withHistory}</td>
       <td style="text-align: right; color: var(--amber);">${s.avgPct}</td>
@@ -1669,7 +1690,7 @@ $('btn-close-reviewer-stats').addEventListener('click', () => {
 });
 
 // ====================== Reviewer-as-Labeler Stats ======================
-let revAsLabelerSortCol = 'avgPct', revAsLabelerSortDir = 'desc';
+let revAsLabelerSortCol = 'concernScore', revAsLabelerSortDir = 'desc';
 
 function computeRevAsLabelerStats(sortCol, sortDir) {
   const { reviewerIds } = buildRoleSets();
@@ -1696,14 +1717,19 @@ function computeRevAsLabelerStats(sortCol, sortDir) {
     if (data.pctChanges.length === 0) continue;
     const withHistory = data.pctChanges.length;
     const avgPct = (data.pctChanges.reduce((a, b) => a + b, 0) / withHistory).toFixed(1);
-    result.push({ annotator, ...data, withHistory, avgPct });
+    const concernScore = +(
+      (data.roleFlips  / withHistory) * 10 +
+      parseFloat(avgPct) +
+      (data.timeShifts / withHistory) * 10 +
+      (data.capsChange / withHistory) * 5
+    ).toFixed(1);
+    result.push({ annotator, ...data, withHistory, avgPct, concernScore });
   }
 
   result.sort((a, b) => {
     let aVal = a[sortCol], bVal = b[sortCol];
     if (sortCol === 'avgPct') {
-      aVal = parseFloat(a.avgPct);
-      bVal = parseFloat(b.avgPct);
+      aVal = parseFloat(a.avgPct); bVal = parseFloat(b.avgPct);
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     }
     if (sortCol === 'annotator') {
@@ -1720,6 +1746,7 @@ function renderRevAsLabelerStats() {
   tbody.innerHTML = stats.map(s => `
     <tr>
       <td><span class="copy-id" data-copy="${escapeAttr(s.annotator)}" title="click to copy">${escapeHtml(s.annotator)}</span></td>
+      <td style="text-align: right; font-weight: 500; color: ${concernColor(s.concernScore)};">${s.concernScore}</td>
       <td style="text-align: right;">${s.submitted}</td>
       <td style="text-align: right;">${s.approved}</td>
       <td style="text-align: right;">${s.withHistory}</td>
