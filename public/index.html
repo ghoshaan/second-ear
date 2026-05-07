@@ -711,8 +711,8 @@ function renderDoc(d, terms) {
     </div>
   `).join('');
   const reviewedAtShort = d.reviewedAt ? new Date(d.reviewedAt).toISOString().slice(0, 10) : '';
-  const annotatorLine = d.annotator ? `<div class="annotator-line">labeler <b>${escapeHtml(d.annotator)}</b></div>` : '';
-  const reviewerLine = d.reviewed && d.reviewedBy ? `<div class="annotator-line">reviewer <b>${escapeHtml(d.reviewedBy)}</b>${reviewedAtShort ? ` <span style="color:var(--ink-faint)">· ${reviewedAtShort}</span>` : ''}</div>` : '';
+  const annotatorLine = d.annotator ? `<div class="annotator-line">labeler <span class="copy-id" data-copy="${escapeAttr(d.annotator)}" title="click to copy">${escapeHtml(d.annotator)}</span></div>` : '';
+  const reviewerLine = d.reviewed && d.reviewedBy ? `<div class="annotator-line">reviewer <span class="copy-id" data-copy="${escapeAttr(d.reviewedBy)}" title="click to copy">${escapeHtml(d.reviewedBy)}</span>${reviewedAtShort ? ` <span style="color:var(--ink-faint)">· ${reviewedAtShort}</span>` : ''}</div>` : '';
   const idLine = d.id ? `<div class="annotator-line">id <span class="copy-id" data-copy="${escapeAttr(String(d.id))}" title="click to copy">${escapeHtml(String(d.id))}</span></div>` : '';
   
   // --- ADD THIS ---

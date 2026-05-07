@@ -98,6 +98,15 @@
 
   .annotator-line { font-size: 10px; color: var(--ink-faint); margin-top: 6px; text-transform: uppercase; letter-spacing: 0.12em; }
   .annotator-line b { color: var(--ink-dim); font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .copy-id {
+    font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px;
+    color: var(--ink-dim); cursor: pointer; user-select: all;
+    border: 1px solid var(--line-2); padding: 1px 6px;
+    text-transform: none; letter-spacing: 0;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .copy-id:hover { color: var(--amber); border-color: rgba(255,179,71,0.4); }
+  .copy-id.copied { color: var(--pilot); border-color: rgba(111,207,151,0.4); }
 
   .version-badge { font-size: 10px; color: var(--ink-dim); cursor: pointer; border: 1px solid var(--line-2); padding: 2px 7px; user-select: none; transition: color 0.15s, border-color 0.15s; background: transparent; font-family: inherit; }
   .version-badge:hover { color: var(--amber); border-color: rgba(255,179,71,0.4); }
@@ -547,9 +556,9 @@ function renderDoc(d, terms) {
   `).join('');
   const reviewedAtShort = d.reviewedAt ? new Date(d.reviewedAt).toISOString().slice(0, 10) : '';
   const annotatorLine = d.annotator
-    ? `<div class="annotator-line">labeler <b>${escapeHtml(d.annotator)}</b></div>` : '';
+    ? `<div class="annotator-line">labeler <span class="copy-id" data-copy="${escapeAttr(d.annotator)}" title="click to copy">${escapeHtml(d.annotator)}</span></div>` : '';
   const reviewerLine = d.reviewed && d.reviewedBy
-    ? `<div class="annotator-line">reviewer <b>${escapeHtml(d.reviewedBy)}</b>${reviewedAtShort ? ` <span style="color:var(--ink-faint)">· ${reviewedAtShort}</span>` : ''}</div>` : '';
+    ? `<div class="annotator-line">reviewer <span class="copy-id" data-copy="${escapeAttr(d.reviewedBy)}" title="click to copy">${escapeHtml(d.reviewedBy)}</span>${reviewedAtShort ? ` <span style="color:var(--ink-faint)">· ${reviewedAtShort}</span>` : ''}</div>` : '';
   const keyHtml = highlight(d.key, terms);
   return `
     <article class="result">
@@ -847,6 +856,19 @@ $('f-batch').addEventListener('change', e => { facetBatch = e.target.value; rend
 $('f-position').addEventListener('change', e => { facetPosition = e.target.value; renderAll(); });
 
 results.addEventListener('click', e => {
+  const copy = e.target.closest('.copy-id');
+  if (copy) {
+    const text = copy.dataset.copy;
+    if (text && navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = copy.textContent;
+        copy.classList.add('copied');
+        copy.textContent = 'copied';
+        setTimeout(() => { copy.classList.remove('copied'); copy.textContent = orig; }, 700);
+      }).catch(() => {});
+    }
+    return;
+  }
   const badge = e.target.closest('.version-badge');
   if (!badge) return;
   const panel = document.getElementById(`hp-${badge.dataset.vid}`);
