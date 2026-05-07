@@ -1433,9 +1433,8 @@ function computeLabelerStats(sortCol, sortDir) {
 
   const result = [];
   for (const [annotator, data] of stats) {
-    const avgPct = data.pctChanges.length > 0
-      ? (data.pctChanges.reduce((a, b) => a + b, 0) / data.pctChanges.length).toFixed(1)
-      : null;
+    if (data.pctChanges.length === 0) continue;
+    const avgPct = (data.pctChanges.reduce((a, b) => a + b, 0) / data.pctChanges.length).toFixed(1);
     result.push({ annotator, ...data, avgPct });
   }
 
@@ -1462,7 +1461,7 @@ function renderLabelerStats() {
       <td><span class="copy-id" data-copy="${escapeAttr(s.annotator)}" title="click to copy">${escapeHtml(s.annotator)}</span></td>
       <td style="text-align: right;">${s.reviews}</td>
       <td style="text-align: right;">${s.reviewed}</td>
-      <td style="text-align: right; color: ${s.pctChanges.length > 0 ? 'var(--amber)' : 'var(--ink-dim)'};">${s.avgPct || '—'}</td>
+      <td style="text-align: right; color: var(--amber);">${s.avgPct}</td>
     </tr>
   `).join('');
   updateSortIndicators('stats-table', labelerSortCol, labelerSortDir);
@@ -1497,9 +1496,8 @@ function computeReviewerStats(sortCol, sortDir) {
 
   const result = [];
   for (const [reviewer, data] of stats) {
-    const avgPct = data.pctChanges.length > 0
-      ? (data.pctChanges.reduce((a, b) => a + b, 0) / data.pctChanges.length).toFixed(1)
-      : null;
+    if (data.pctChanges.length === 0) continue;
+    const avgPct = (data.pctChanges.reduce((a, b) => a + b, 0) / data.pctChanges.length).toFixed(1);
     result.push({ reviewer, ...data, avgPct });
   }
 
@@ -1525,7 +1523,7 @@ function renderReviewerStats() {
     <tr>
       <td><span class="copy-id" data-copy="${escapeAttr(s.reviewer)}" title="click to copy">${escapeHtml(s.reviewer)}</span></td>
       <td style="text-align: right;">${s.reviews}</td>
-      <td style="text-align: right; color: ${s.pctChanges.length > 0 ? 'var(--amber)' : 'var(--ink-dim)'};">${s.avgPct || '—'}</td>
+      <td style="text-align: right; color: var(--amber);">${s.avgPct}</td>
     </tr>
   `).join('');
   updateSortIndicators('reviewer-stats-table', reviewerSortCol, reviewerSortDir);
