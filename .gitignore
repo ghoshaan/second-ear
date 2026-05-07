@@ -1,7 +1,3 @@
 node_modules/
-public/data.enc
-public/index.enc
-public/meta.json
 input.ndjson
-*.ndjson
 test-decrypt.mjs
