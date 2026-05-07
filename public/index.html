@@ -1428,8 +1428,7 @@ function computeLabelerStats(sortCol, sortDir) {
     const s = stats.get(d.annotator);
     s.reviews++;
     if (d.reviewed) s.reviewed++;
-    const pct = getDocPct(d);
-    if (pct !== null && pct !== undefined) s.pctChanges.push(pct);
+    if (hasRealHistory(d.versions, d)) s.pctChanges.push(getDocPct(d));
   }
 
   const result = [];
@@ -1493,8 +1492,7 @@ function computeReviewerStats(sortCol, sortDir) {
     }
     const s = stats.get(d.reviewedBy);
     s.reviews++;
-    const pct = getDocPct(d);
-    if (pct !== null && pct !== undefined) s.pctChanges.push(pct);
+    if (hasRealHistory(d.versions, d)) s.pctChanges.push(getDocPct(d));
   }
 
   const result = [];
