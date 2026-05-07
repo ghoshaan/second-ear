@@ -47,7 +47,10 @@
       "PowerShell(cd \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\atc-search\"; $buildArgs = python scripts/build_args.py; node scripts/build.mjs $buildArgs.Split\\(\"`n\"\\))",
       "PowerShell(cd \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\atc-search\"; $env:SEARCH_PASSWORD = \"ZoomFilterScan60\"; $buildArgs = python scripts/build_args.py; node scripts/build.mjs $buildArgs.Split\\(\"`n\"\\))",
       "Bash(Get-ChildItem *)",
-      "PowerShell(Write-Host \"Current directory:\" \\(Get-Location\\).Path; Write-Host \"---\"; Get-ChildItem . | Select-Object -ExpandProperty Name)"
+      "PowerShell(Write-Host \"Current directory:\" \\(Get-Location\\).Path; Write-Host \"---\"; Get-ChildItem . | Select-Object -ExpandProperty Name)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Format-Table FullName)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\atc-search\" -Directory | Where-Object { $_.Name -notmatch 'node_modules|\\\\.git' })"
     ]
   }
 }
