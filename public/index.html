@@ -276,6 +276,7 @@
             <th data-sort="annotator" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Labeler <span class="sort-indicator">⇅</span></th>
             <th data-sort="submitted" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Submitted <span class="sort-indicator">⇅</span></th>
             <th data-sort="approved" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Approved <span class="sort-indicator">⇅</span></th>
+            <th data-sort="withHistory" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Has History <span class="sort-indicator">⇅</span></th>
             <th data-sort="avgPct" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Avg % Changed <span class="sort-indicator">⇅</span></th>
           </tr>
         </thead>
@@ -295,6 +296,7 @@
           <tr style="border-bottom: 1px solid var(--line); text-align: left;">
             <th data-sort="reviewer" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Reviewer <span class="sort-indicator">⇅</span></th>
             <th data-sort="approved" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Approved <span class="sort-indicator">⇅</span></th>
+            <th data-sort="withHistory" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Has History <span class="sort-indicator">⇅</span></th>
             <th data-sort="avgPct" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Avg % Changed <span class="sort-indicator">⇅</span></th>
           </tr>
         </thead>
@@ -1434,8 +1436,9 @@ function computeLabelerStats(sortCol, sortDir) {
   const result = [];
   for (const [annotator, data] of stats) {
     if (data.pctChanges.length === 0) continue;
-    const avgPct = (data.pctChanges.reduce((a, b) => a + b, 0) / data.pctChanges.length).toFixed(1);
-    result.push({ annotator, ...data, avgPct });
+    const withHistory = data.pctChanges.length;
+    const avgPct = (data.pctChanges.reduce((a, b) => a + b, 0) / withHistory).toFixed(1);
+    result.push({ annotator, ...data, withHistory, avgPct });
   }
 
   result.sort((a, b) => {
@@ -1461,6 +1464,7 @@ function renderLabelerStats() {
       <td><span class="copy-id" data-copy="${escapeAttr(s.annotator)}" title="click to copy">${escapeHtml(s.annotator)}</span></td>
       <td style="text-align: right;">${s.submitted}</td>
       <td style="text-align: right;">${s.approved}</td>
+      <td style="text-align: right;">${s.withHistory}</td>
       <td style="text-align: right; color: var(--amber);">${s.avgPct}</td>
     </tr>
   `).join('');
@@ -1497,8 +1501,9 @@ function computeReviewerStats(sortCol, sortDir) {
   const result = [];
   for (const [reviewer, data] of stats) {
     if (data.pctChanges.length === 0) continue;
-    const avgPct = (data.pctChanges.reduce((a, b) => a + b, 0) / data.pctChanges.length).toFixed(1);
-    result.push({ reviewer, ...data, avgPct });
+    const withHistory = data.pctChanges.length;
+    const avgPct = (data.pctChanges.reduce((a, b) => a + b, 0) / withHistory).toFixed(1);
+    result.push({ reviewer, ...data, withHistory, avgPct });
   }
 
   result.sort((a, b) => {
@@ -1523,6 +1528,7 @@ function renderReviewerStats() {
     <tr>
       <td><span class="copy-id" data-copy="${escapeAttr(s.reviewer)}" title="click to copy">${escapeHtml(s.reviewer)}</span></td>
       <td style="text-align: right;">${s.approved}</td>
+      <td style="text-align: right;">${s.withHistory}</td>
       <td style="text-align: right; color: var(--amber);">${s.avgPct}</td>
     </tr>
   `).join('');
