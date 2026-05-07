@@ -1316,7 +1316,7 @@ q.addEventListener('input', e => {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => rerun(), 80);
 });
-results.addEventListener('click', e => {
+document.addEventListener('click', e => {
   const copy = e.target.closest('.copy-id');
   if (copy) {
     const text = copy.dataset.copy;
@@ -1330,6 +1330,9 @@ results.addEventListener('click', e => {
     }
     return;
   }
+});
+
+results.addEventListener('click', e => {
   const readBtn = e.target.closest('.read-toggle');
   if (readBtn) {
     const id = readBtn.dataset.rid;
@@ -1457,7 +1460,7 @@ function renderLabelerStats() {
   const tbody = $('stats-tbody');
   tbody.innerHTML = stats.map(s => `
     <tr>
-      <td>${escapeHtml(s.annotator)}</td>
+      <td><span class="copy-id" data-copy="${escapeAttr(s.annotator)}" title="click to copy">${escapeHtml(s.annotator)}</span></td>
       <td style="text-align: right;">${s.reviews}</td>
       <td style="text-align: right;">${s.reviewed}</td>
       <td style="text-align: right; color: ${s.pctChanges.length > 0 ? 'var(--amber)' : 'var(--ink-dim)'};">${s.avgPct || '—'}</td>
@@ -1522,7 +1525,7 @@ function renderReviewerStats() {
   const tbody = $('reviewer-stats-tbody');
   tbody.innerHTML = stats.map(s => `
     <tr>
-      <td>${escapeHtml(s.reviewer)}</td>
+      <td><span class="copy-id" data-copy="${escapeAttr(s.reviewer)}" title="click to copy">${escapeHtml(s.reviewer)}</span></td>
       <td style="text-align: right;">${s.reviews}</td>
       <td style="text-align: right; color: ${s.pctChanges.length > 0 ? 'var(--amber)' : 'var(--ink-dim)'};">${s.avgPct || '—'}</td>
     </tr>
