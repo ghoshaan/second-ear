@@ -1433,6 +1433,18 @@ q.addEventListener('input', e => {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => rerun(), 80);
 });
+function copyId(e, el) {
+  e.stopPropagation();
+  const text = el.dataset.copy;
+  if (text && navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      const orig = el.textContent;
+      el.classList.add('copied');
+      el.textContent = 'copied';
+      setTimeout(() => { el.classList.remove('copied'); el.textContent = orig; }, 700);
+    }).catch(() => {});
+  }
+}
 document.addEventListener('click', e => {
   const copy = e.target.closest('.copy-id');
   if (copy) {
@@ -1631,7 +1643,7 @@ function renderLabelerStats() {
     <tr class="stats-row" onclick="toggleStatsDetail(this)"
         data-submitted="${s.submitted}" data-approved="${s.approved}" data-avgpct="${s.avgPct}"
         data-roleflips="${s.roleFlips}" data-capschg="${s.capsChange}" data-timeshifts="${s.timeShifts}">
-      <td><span class="copy-id" data-copy="${escapeAttr(s.annotator)}" title="click to copy" onclick="event.stopPropagation()">${escapeHtml(s.annotator)}</span></td>
+      <td><span class="copy-id" data-copy="${escapeAttr(s.annotator)}" title="click to copy" onclick="copyId(event,this)">${escapeHtml(s.annotator)}</span></td>
       <td style="text-align: right; font-weight: 500; color: ${concernColor(s.totalConcern, maxConcern)};">${s.totalConcern}</td>
       <td style="text-align: right;">${s.withHistory}</td>
     </tr>
@@ -1728,7 +1740,7 @@ function renderReviewerStats() {
     <tr class="stats-row" onclick="toggleStatsDetail(this)"
         data-approved="${s.approved}" data-avgpct="${s.avgPct}"
         data-roleflips="${s.roleFlips}" data-capschg="${s.capsChange}" data-timeshifts="${s.timeShifts}">
-      <td><span class="copy-id" data-copy="${escapeAttr(s.reviewer)}" title="click to copy" onclick="event.stopPropagation()">${escapeHtml(s.reviewer)}</span></td>
+      <td><span class="copy-id" data-copy="${escapeAttr(s.reviewer)}" title="click to copy" onclick="copyId(event,this)">${escapeHtml(s.reviewer)}</span></td>
       <td style="text-align: right;">${s.withHistory}</td>
     </tr>
   `).join('');
@@ -1806,7 +1818,7 @@ function renderRevAsLabelerStats() {
     <tr class="stats-row" onclick="toggleStatsDetail(this)"
         data-submitted="${s.submitted}" data-approved="${s.approved}" data-avgpct="${s.avgPct}"
         data-roleflips="${s.roleFlips}" data-capschg="${s.capsChange}" data-timeshifts="${s.timeShifts}">
-      <td><span class="copy-id" data-copy="${escapeAttr(s.annotator)}" title="click to copy" onclick="event.stopPropagation()">${escapeHtml(s.annotator)}</span></td>
+      <td><span class="copy-id" data-copy="${escapeAttr(s.annotator)}" title="click to copy" onclick="copyId(event,this)">${escapeHtml(s.annotator)}</span></td>
       <td style="text-align: right; font-weight: 500; color: ${concernColor(s.totalConcern, maxConcern)};">${s.totalConcern}</td>
       <td style="text-align: right;">${s.withHistory}</td>
     </tr>
