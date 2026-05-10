@@ -968,7 +968,7 @@ function alignedWordDiff(oldText, newText) {
   let i = on.length, j = nn.length;
   while (i > 0 || j > 0) {
     if (i > 0 && j > 0 && on[i-1] === nn[j-1]) { ops.push({ type: 'eq', oi: i-1, ni: j-1 }); i--; j--; }
-    else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) { ops.push({ type: 'ins', ni: j-1 }); j--; }
+    else if (j > 0 && (i === 0 || dp[i][j-1] > dp[i-1][j])) { ops.push({ type: 'ins', ni: j-1 }); j--; }
     else { ops.push({ type: 'del', oi: i-1 }); i--; }
   }
   ops.reverse();
@@ -1031,7 +1031,7 @@ function wordDiff(oldText, newText) {
   let i = on.length, j = nn.length;
   while (i > 0 || j > 0) {
     if (i > 0 && j > 0 && on[i-1] === nn[j-1]) { ops.push({ type: 'eq', oi: i-1, ni: j-1 }); i--; j--; }
-    else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) { ops.push({ type: 'ins', ni: j-1 }); j--; }
+    else if (j > 0 && (i === 0 || dp[i][j-1] > dp[i-1][j])) { ops.push({ type: 'ins', ni: j-1 }); j--; }
     else { ops.push({ type: 'del', oi: i-1 }); i--; }
   }
   ops.reverse();
