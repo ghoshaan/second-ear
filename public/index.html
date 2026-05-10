@@ -181,6 +181,7 @@
   .stats-detail span b { font-weight: 500; }
   .stats-row { cursor: pointer; }
   .stats-row.expanded { background: rgba(255,179,71,0.04); }
+  .stats-row.excluded-labeler td:not(:first-child) { opacity: 0.35; text-decoration: line-through; }
 
   .empty { padding: 80px 32px; text-align: center; color: var(--ink-faint); }
   .empty .glyph { font-family: 'Fraunces', serif; font-size: 65px; font-style: italic; color: var(--line-2); margin-bottom: 12px; }
@@ -287,17 +288,13 @@
   <div class="stats-panel" id="stats-panel">
     <div style="padding: 20px; max-width: 1200px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h2 style="margin: 0; font-family: inherit; font-size: 16px; font-weight: 500;">Labeler Statistics</h2>
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <label style="font-size: 12px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em;">exclude</label>
-          <input id="stats-exclude-labeler" type="text" list="d-annotator" placeholder="labeler name" autocomplete="off"
-                 style="background: var(--bg); border: 1px solid var(--line-2); color: var(--ink); padding: 4px 8px; font-size: 13px; font-family: inherit; border-radius: 2px; width: 180px;">
-          <button class="lock-out" id="btn-close-stats">close</button>
-        </div>
+        <h2 style="margin: 0; font-family: inherit; font-size: 16px; font-weight: 500;">Labeler Statistics <span id="excluded-count" style="font-size: 12px; color: var(--ink-faint); font-weight: 400;"></span></h2>
+        <button class="lock-out" id="btn-close-stats">close</button>
       </div>
       <table id="stats-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
         <thead>
           <tr style="border-bottom: 1px solid var(--line); text-align: left;">
+            <th style="padding: 8px; width: 32px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; border-bottom: 2px solid transparent;" title="exclude from search results">excl</th>
             <th data-sort="annotator" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Labeler <span class="sort-indicator">⇅</span></th>
             <th data-sort="avgPct" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Avg % Chg <span class="sort-indicator">⇅</span></th>
             <th data-sort="withHistory" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Has History <span class="sort-indicator">⇅</span></th>
@@ -482,6 +479,13 @@ function loadReadSet() {
 function saveReadSet() { localStorage.setItem(READ_KEY, JSON.stringify([...readSet])); }
 function markRead(id) { if (id && !readSet.has(id)) { readSet.add(id); saveReadSet(); } }
 
+const EXCLUDED_LABELERS_KEY = 'atc-search-excluded-labelers-v1';
+let excludedLabelers = new Set();
+function loadExcludedLabelers() {
+  try { excludedLabelers = new Set(JSON.parse(localStorage.getItem(EXCLUDED_LABELERS_KEY) || '[]')); } catch { excludedLabelers = new Set(); }
+}
+function saveExcludedLabelers() { localStorage.setItem(EXCLUDED_LABELERS_KEY, JSON.stringify([...excludedLabelers])); }
+
 // --- ADD THESE NEW VARIABLES ---
 const COMMENTS_KEY = 'atc-search-comments-v1';
 let commentsMap = new Map();
@@ -593,6 +597,7 @@ async function loadEncryptedData(cryptoKey) {
   populateFacets();
   loadSelection();
   loadReadSet();
+  loadExcludedLabelers();
   $('m-docs').textContent = meta.count.toLocaleString();
   $('m-hours').textContent = ((meta.totalSeconds || 0) / 3600).toFixed(1);
   statusL.textContent = `ready · ${meta.count.toLocaleString()} recordings`;
@@ -752,6 +757,7 @@ function renderPagination(totalPages) {
 function applyFilters(docs) {
   return docs.filter(d => {
     if (activeFilter !== 'all' && !(d.roles || []).includes(activeFilter)) return false;
+    if (d.annotator && excludedLabelers.has(d.annotator)) return false;
     if (activeReview === 'reviewed' && !d.reviewed) return false;
     if (activeReview === 'unreviewed' && d.reviewed) return false;
     if (facetSel.batch && d.batch !== facetSel.batch) return false;
@@ -1590,7 +1596,6 @@ $('f-sort').addEventListener('change', (e) => {
 
 // ====================== Labeler Stats ======================
 let labelerSortCol = 'avgPct', labelerSortDir = 'desc';
-let statsExcludeLabeler = '';
 
 function buildRoleSets() {
   const annotatorIds = new Set(), reviewerIds = new Set();
@@ -1603,11 +1608,9 @@ function buildRoleSets() {
 
 function computeLabelerStats(sortCol, sortDir) {
   const { reviewerIds } = buildRoleSets();
-  const exclude = statsExcludeLabeler.trim().toLowerCase();
   const stats = new Map();
   for (const d of allDocs) {
     if (!d.annotator || reviewerIds.has(d.annotator)) continue;
-    if (exclude && d.annotator.toLowerCase() === exclude) continue;
     if (!stats.has(d.annotator)) {
       stats.set(d.annotator, { submitted: 0, approved: 0, pctChanges: [], roleFlips: 0, capsChange: 0, timeShifts: 0 });
     }
@@ -1682,19 +1685,39 @@ function concernColor(score, max) {
   return 'var(--pilot)';
 }
 
+function toggleLabelerExclusion(cb) {
+  const name = cb.dataset.labeler;
+  if (cb.checked) excludedLabelers.add(name);
+  else excludedLabelers.delete(name);
+  saveExcludedLabelers();
+  cb.closest('tr').classList.toggle('excluded-labeler', cb.checked);
+  const count = excludedLabelers.size;
+  $('excluded-count').textContent = count ? `— ${count} excluded` : '';
+  rerun();
+}
+
 function renderLabelerStats() {
   const stats = computeLabelerStats(labelerSortCol, labelerSortDir);
   const maxAvgPct = stats.length ? Math.max(...stats.map(s => parseFloat(s.avgPct))) : 0;
   const tbody = $('stats-tbody');
-  tbody.innerHTML = stats.map(s => `
-    <tr class="stats-row" onclick="toggleStatsDetail(this)"
+  tbody.innerHTML = stats.map(s => {
+    const excl = excludedLabelers.has(s.annotator);
+    return `
+    <tr class="stats-row${excl ? ' excluded-labeler' : ''}" onclick="toggleStatsDetail(this)"
         data-submitted="${s.submitted}" data-approved="${s.approved}" data-avgpct="${s.avgPct}"
         data-roleflips="${s.roleFlips}" data-capschg="${s.capsChange}" data-timeshifts="${s.timeShifts}">
+      <td onclick="event.stopPropagation()" style="padding: 8px 4px; text-align: center;">
+        <input type="checkbox" class="labeler-excl-cb" data-labeler="${escapeAttr(s.annotator)}"
+               ${excl ? 'checked' : ''} onchange="toggleLabelerExclusion(this)"
+               style="cursor:pointer; accent-color: var(--amber);">
+      </td>
       <td><span class="copy-id" data-copy="${escapeAttr(s.annotator)}" title="click to copy" onclick="copyId(event,this)">${escapeHtml(s.annotator)}</span></td>
       <td style="text-align: right; font-weight: 500; color: ${concernColor(parseFloat(s.avgPct), maxAvgPct)};">${s.avgPct}% | ${s.withHistory}</td>
       <td style="text-align: right;">${s.withHistory}</td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
+  const count = excludedLabelers.size;
+  $('excluded-count').textContent = count ? `— ${count} excluded` : '';
   updateSortIndicators('stats-table', labelerSortCol, labelerSortDir);
 }
 
@@ -1708,11 +1731,6 @@ $('btn-stats').addEventListener('click', () => {
 
 $('btn-close-stats').addEventListener('click', () => {
   $('stats-panel').classList.remove('open');
-});
-
-$('stats-exclude-labeler').addEventListener('input', e => {
-  statsExcludeLabeler = e.target.value;
-  renderLabelerStats();
 });
 
 // ====================== Reviewer Stats ======================
