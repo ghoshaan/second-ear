@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 import MiniSearch from 'minisearch';
 
 // ---------------------------------------------------------------------------
@@ -394,9 +395,7 @@ const facets = {
 // ---------------------------------------------------------------------------
 const ms = new MiniSearch({
   fields: ['transcript', 'key', 'drId'],
-  storeFields: ['id', 'projectId', 'key', 'duration', 'speakers', 'roles', 'segments', 'transcript',
-    'airport', 'position', 'date', 'time', 'batch', 'snapshotDate', 'annotator',
-    'reviewed', 'reviewedBy', 'reviewedAt', 'createdAt', 'drId', 'versions'],
+  storeFields: ['id', 'key', 'drId'], // Only store essentials; retrieve rest from data.enc
   searchOptions: {
     boost: { key: 2 },
     fuzzy: 0.2,
@@ -428,14 +427,18 @@ function encrypt(plaintextBuffer, key) {
 console.log(`→ Deriving key (PBKDF2, ${ITERATIONS.toLocaleString()} iterations)`);
 const key = deriveKey(PASSWORD, SALT);
 
-console.log(`→ Encrypting blobs (AES-256-GCM)`);
-fs.writeFileSync(DATA_PATH, encrypt(Buffer.from(JSON.stringify(rows)), key));
-fs.writeFileSync(INDEX_PATH, encrypt(Buffer.from(JSON.stringify(ms.toJSON())), key));
+console.log(`→ Compressing and encrypting blobs (Gzip + AES-256-GCM)`);
+const dataGzip = zlib.gzipSync(JSON.stringify(rows));
+const indexGzip = zlib.gzipSync(JSON.stringify(ms.toJSON()));
+
+fs.writeFileSync(DATA_PATH, encrypt(dataGzip, key));
+fs.writeFileSync(INDEX_PATH, encrypt(indexGzip, key));
 
 const meta = {
-  version: 2,
+  version: 3,
   kdf: { name: 'PBKDF2', hash: 'SHA-256', iterations: ITERATIONS, salt: SALT.toString('base64') },
   cipher: 'AES-256-GCM',
+  compression: 'gzip',
   count: rows.length,
   totalSeconds: rows.reduce((a, r) => a + (r.duration || 0), 0),
   facets,

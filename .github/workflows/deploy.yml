@@ -59,6 +59,14 @@ jobs:
       # -----------------------------------------------------------------------
       # Download NDJSON from Google Drive. Skipped if DRIVE_NDJSON_IDS not set.
       # -----------------------------------------------------------------------
+      - name: Cache NDJSON files
+        uses: actions/cache@v4
+        with:
+          path: ndjson
+          key: ${{ runner.os }}-ndjson-${{ hashFiles('scripts/drive_download.py') }}-${{ secrets.DRIVE_NDJSON_IDS }}
+          restore-keys: |
+            ${{ runner.os }}-ndjson-
+
       - name: Download NDJSON from Google Drive
         env:
           DRIVE_NDJSON_IDS: ${{ secrets.DRIVE_NDJSON_IDS }}

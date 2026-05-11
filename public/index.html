@@ -419,6 +419,7 @@ const statusL = $('status-l');
 const statusR = $('status-r');
 
 let ms = null;
+let docMap = new Map(); // Fast lookup by ID
 let allDocs = [];
 let meta = null;
 let activeFilter = 'all';
@@ -489,7 +490,16 @@ async function decryptBlob(buffer, cryptoKey) {
   const plain = await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv: new Uint8Array(iv) }, cryptoKey, ciphertextWithTag
   );
-  return new TextDecoder().decode(plain);
+  return plain;
+}
+
+async function decompress(buffer) {
+  const ds = new DecompressionStream('gzip');
+  const writer = ds.writable.getWriter();
+  writer.write(buffer);
+  writer.close();
+  const response = new Response(ds.readable);
+  return response.text();
 }
 
 function b64ToBytes(b64) {
@@ -542,15 +552,23 @@ async function loadEncryptedData(cryptoKey) {
   const [dataBuf, indexBuf] = await Promise.all([
     fetchEncrypted('data.enc'), fetchEncrypted('index.enc'),
   ]);
-  const [dataJson, indexJson] = await Promise.all([
+  let [dataRaw, indexRaw] = await Promise.all([
     decryptBlob(dataBuf, cryptoKey), decryptBlob(indexBuf, cryptoKey),
   ]);
-  allDocs = JSON.parse(dataJson);
-  ms = MiniSearch.loadJS(JSON.parse(indexJson), {
+
+  if (meta.compression === 'gzip') {
+    dataRaw = await decompress(dataRaw);
+    indexRaw = await decompress(indexRaw);
+  } else {
+    dataRaw = new TextDecoder().decode(dataRaw);
+    indexRaw = new TextDecoder().decode(indexRaw);
+  }
+
+  allDocs = JSON.parse(dataRaw);
+  docMap = new Map(allDocs.map(d => [d.id, d]));
+  ms = MiniSearch.loadJS(JSON.parse(indexRaw), {
     fields: ['transcript', 'key', 'drId'],
-    storeFields: ['id', 'projectId', 'key', 'duration', 'speakers', 'roles', 'segments', 'transcript',
-                  'airport', 'position', 'date', 'time', 'batch', 'snapshotDate', 'annotator',
-                  'reviewed', 'reviewedBy', 'reviewedAt', 'createdAt', 'drId', 'versions'],
+    storeFields: ['id', 'key', 'drId'],
     searchOptions: { boost: { key: 2 }, fuzzy: 0.2, prefix: true },
     tokenize: (text) => text.split(/[\s,.;:!?()[\]{}"<>|/\\-]+/).filter(Boolean),
   });
@@ -671,7 +689,9 @@ function rerun() {
     const t0 = performance.now();
     const hits = ms.search(query, { combineWith: 'AND' });
     currentResults = hits;
-    filteredDocs = applySort(applyFilters(hits));
+    // Map hits back to full documents from our docMap
+    const fullHits = hits.map(h => docMap.get(h.id)).filter(Boolean);
+    filteredDocs = applySort(applyFilters(fullHits));
     statusR.textContent = `${filteredDocs.length.toLocaleString()} of ${hits.length.toLocaleString()} hits · ${(performance.now() - t0).toFixed(1)}ms`;
   }
   
