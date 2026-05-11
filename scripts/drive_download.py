@@ -74,6 +74,13 @@ def _try_download(opener, url, file_id, dest_dir):
     with opener.open(req) as r:
         ctype = r.headers.get("Content-Type", "")
         cd = r.headers.get("Content-Disposition", "")
+        
+        # If we got a filename from CD, check if it already exists to skip
+        fname = parse_filename(cd)
+        if fname and os.path.exists(os.path.join(dest_dir, fname)) and os.path.getsize(os.path.join(dest_dir, fname)) > 0:
+            print(f"  ✓ {fname} already exists, skipping")
+            return True
+
         if "text/html" in ctype:
             html = r.read().decode("utf-8", errors="ignore")
             parser = FormFieldParser()
@@ -92,9 +99,12 @@ def _try_download(opener, url, file_id, dest_dir):
             with opener.open(req2) as r2:
                 cd2 = r2.headers.get("Content-Disposition", "")
                 fname = parse_filename(cd2) or f"drive_{file_id}.ndjson"
+                if os.path.exists(os.path.join(dest_dir, fname)) and os.path.getsize(os.path.join(dest_dir, fname)) > 0:
+                    print(f"  ✓ {fname} already exists, skipping")
+                    return True
                 save_response(r2, os.path.join(dest_dir, fname))
         else:
-            fname = parse_filename(cd) or f"drive_{file_id}.ndjson"
+            fname = fname or f"drive_{file_id}.ndjson"
             save_response(r, os.path.join(dest_dir, fname))
         return True
 
