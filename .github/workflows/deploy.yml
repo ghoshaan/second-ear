@@ -68,9 +68,9 @@ jobs:
             echo "→ DRIVE_NDJSON_IDS not set — skipping Drive download"
             exit 0
           fi
-          python3 scripts/drive_download.py ndjson/Cleaned
-          echo "→ NDJSON files in ndjson/Cleaned after Drive download:"
-          ls -lh ndjson/Cleaned/*.ndjson 2>/dev/null || echo "  (none)"
+          python3 scripts/drive_download.py ndjson
+          echo "→ NDJSON files in ndjson/ after Drive download:"
+          ls -lh ndjson/*.ndjson 2>/dev/null || echo "  (none)"
 
       # -----------------------------------------------------------------------
       # Build encrypted search index, then commit encrypted outputs back to
