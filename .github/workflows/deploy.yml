@@ -30,6 +30,24 @@ jobs:
       - run: npm ci
 
       # -----------------------------------------------------------------------
+      # Download NDJSON from Google Drive. Skipped if DRIVE_NDJSON_IDS not set.
+      # -----------------------------------------------------------------------
+      - name: Prepare Cache Key
+        env:
+          DRIVE_NDJSON_IDS: ${{ secrets.DRIVE_NDJSON_IDS }}
+        run: |
+          echo "$DRIVE_NDJSON_IDS" > drive_ids.txt
+
+      - name: Cache NDJSON files
+        id: ndjson-cache
+        uses: actions/cache@v4
+        with:
+          path: ndjson
+          key: ${{ runner.os }}-ndjson-${{ hashFiles('scripts/drive_download.py', 'drive_ids.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-ndjson-
+
+      # -----------------------------------------------------------------------
       # Export fresh snapshots from Labelbox → save to ndjson/ → commit.
       # Skipped if LABELBOX_PROJECTS is not set.
       # -----------------------------------------------------------------------
@@ -56,24 +74,8 @@ jobs:
             git push
           fi
 
-      # -----------------------------------------------------------------------
-      # Download NDJSON from Google Drive. Skipped if DRIVE_NDJSON_IDS not set.
-      # -----------------------------------------------------------------------
-      - name: Prepare Cache Key
-        env:
-          DRIVE_NDJSON_IDS: ${{ secrets.DRIVE_NDJSON_IDS }}
-        run: |
-          echo "$DRIVE_NDJSON_IDS" > drive_ids.txt
-
-      - name: Cache NDJSON files
-        uses: actions/cache@v4
-        with:
-          path: ndjson
-          key: ${{ runner.os }}-ndjson-${{ hashFiles('scripts/drive_download.py', 'drive_ids.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-ndjson-
-
       - name: Download NDJSON from Google Drive
+        if: steps.ndjson-cache.outputs.cache-hit != 'true'
         env:
           DRIVE_NDJSON_IDS: ${{ secrets.DRIVE_NDJSON_IDS }}
         run: |
