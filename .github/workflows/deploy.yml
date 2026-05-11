@@ -59,11 +59,18 @@ jobs:
       # -----------------------------------------------------------------------
       # Download NDJSON from Google Drive. Skipped if DRIVE_NDJSON_IDS not set.
       # -----------------------------------------------------------------------
+      - name: Prepare Cache Key
+        id: cache-key
+        env:
+          DRIVE_NDJSON_IDS: ${{ secrets.DRIVE_NDJSON_IDS }}
+        run: |
+          echo "ids_hash=$(echo -n "$DRIVE_NDJSON_IDS" | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
       - name: Cache NDJSON files
         uses: actions/cache@v4
         with:
           path: ndjson
-          key: ${{ runner.os }}-ndjson-${{ hashFiles('scripts/drive_download.py') }}-${{ secrets.DRIVE_NDJSON_IDS }}
+          key: ${{ runner.os }}-ndjson-${{ hashFiles('scripts/drive_download.py') }}-${{ steps.cache-key.outputs.ids_hash }}
           restore-keys: |
             ${{ runner.os }}-ndjson-
 
