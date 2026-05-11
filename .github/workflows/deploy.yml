@@ -71,7 +71,8 @@ jobs:
             echo "→ No new snapshots to commit"
           else
             git commit -m "chore: add Labelbox snapshot $(date -u +%Y-%m-%d-%H) [skip ci]"
-            git push
+            git pull --rebase origin main
+            git push origin main
           fi
 
       - name: Download NDJSON from Google Drive
@@ -106,7 +107,8 @@ jobs:
             echo "→ No changes to encrypted data"
           else
             git commit -m "chore: update encrypted search index $(date -u +%Y-%m-%d-%H) [skip ci]"
-            git push
+            git pull --rebase origin main
+            git push origin main
           fi
 
       - uses: actions/upload-pages-artifact@v3
