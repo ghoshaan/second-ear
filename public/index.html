@@ -90,6 +90,7 @@
   .tag-dur { color: var(--ink-dim); border: none; padding-left: 4px; }
   .tag-reviewed { color: var(--pilot); border-color: rgba(111,207,151,0.4); cursor: help; }
   .tag-unapproved { color: var(--red); border-color: rgba(229,115,115,0.4); opacity: 0.8; }
+  .tag-missing-history { color: var(--amber); border-color: rgba(255,179,71,0.4); opacity: 0.8; }
   .segments { display: grid; gap: 4px; margin-top: 8px; }
 
   .seg { display: grid; grid-template-columns: 56px auto 1fr; gap: 12px; align-items: baseline; padding: 4px 0; }
@@ -354,14 +355,18 @@ function parseAnnotator(createdBy) {
 }
 
 function parseReview(workflowHistory) {
-  if (!Array.isArray(workflowHistory)) {
+  if (!Array.isArray(workflowHistory) || workflowHistory.length === 0) {
     return { reviewed: false, reviewedBy: null, reviewedAt: null };
   }
   const approvals = workflowHistory
     .filter(e => e?.action === 'Approve')
     .sort((a, b) => String(b?.created_at).localeCompare(String(a?.created_at)));
+  
+  const latestAction = [...workflowHistory].sort((a, b) => String(b?.created_at).localeCompare(String(a?.created_at)))[0];
+  const reviewer = parseAnnotator(latestAction?.created_by) ?? latestAction?.created_by ?? null;
+
   if (approvals.length === 0) {
-    return { reviewed: false, reviewedBy: null, reviewedAt: null };
+    return { reviewed: false, reviewedBy: reviewer, reviewedAt: null };
   }
   const latest = approvals[0];
   return {
@@ -643,9 +648,14 @@ function renderDoc(d) {
     displayDoc[f] ? `<span class="tag tag-facet">${escapeHtml(displayDoc[f])}</span>` : ''
   ).join('');
   
+  const isMissingHistory = snapshots.length > 1 && d.snapshotStates.size === 1;
+  const missingBadge = isMissingHistory 
+    ? `<span class="tag tag-missing-history" title="Only exists in one snapshot">missing history</span>` 
+    : '';
+
   const reviewTag = displayDoc.reviewed
     ? `<span class="tag tag-reviewed">✓ approved</span>`
-    : `<span class="tag tag-unapproved">unapproved</span>`;
+    : (displayDoc.reviewedBy ? '' : `<span class="tag tag-unapproved">unapproved</span>`);
   
   const vBadge = (showHistory && d.versions.length > 0)
     ? `<button class="version-badge" data-vid="${escapeAttr(String(d.id))}">&#x1F4DC; ${d.versions.length}</button>`
@@ -678,6 +688,7 @@ function renderDoc(d) {
         <div class="result-key-wrap">${cbEl}${keyEl}</div>
        <div class="result-tags">
           ${vBadge}
+          ${missingBadge}
           ${reviewTag}
           ${roleTags}
           ${facetTags}
@@ -936,9 +947,11 @@ ${docsHtml}
 function exportRow(d) {
   const dur = d.duration ? `${d.duration.toFixed(1)}s` : '—';
   const facets = ['airport', 'position', 'date', 'time'].filter(f => d[f]).map(f => `<span class="export-tag">${escapeHtml(d[f])}</span>`).join('');   
+  
   const review = d.reviewed
     ? `<span class="export-tag reviewed">✓ approved</span>`
-    : `<span class="export-tag unapproved">unapproved</span>`;
+    : (d.reviewedBy ? '' : `<span class="export-tag unapproved">unapproved</span>`);
+
   const labeler = d.annotator ? `<span class="export-tag">labeler: ${escapeHtml(d.annotator)}</span>` : '';
   const batch = d.batch ? `<span class="export-tag">batch: ${escapeHtml(d.batch)}</span>` : '';
   const segs = (d.segments || []).map(s =>
