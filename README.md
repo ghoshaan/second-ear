@@ -1,30 +1,37 @@
 # ATC Transcript Audit Tool
 
-Client-side tool for comparing transcript snapshots and auditing edit history.
+A client-side tool for comparing transcript snapshots and auditing edit history.
 
-- **Compare**: Upload "Before" and "After" Labelbox NDJSON snapshots to see exact changes.
-- **Search**: [MiniSearch](https://lucaong.github.io/minisearch/) with fuzzy + prefix matching.
-- **Audit**: Highlights transcript revisions, role flips, and time shifts between versions.
-- **Export**: Generate audit reports (PDF) for selected recordings.
-- **Privacy**: All processing happens in your browser. Files are never uploaded to a server.
+## Features
+
+- **Compare**: View differences between snapshots (e.g., initial state vs. latest revision).
+- **Audit**: Track approval status, labelers, and reviewer comments.
+- **Export**: Generate print-friendly PDF reports of selected recordings with full history and diff highlights.
+- **Private**: All processing happens client-side in your browser. No data is uploaded to any server.
+
+## Getting Started
+
+1. Open `public/index.html` in a modern web browser.
+2. Upload one or more Labelbox NDJSON snapshots.
+3. If multiple snapshots are provided, the tool will automatically align them and highlight changes.
 
 ## Usage
 
-1. Open the tool (`public/index.html`).
-2. Select your "Before" snapshot (NDJSON export from Labelbox).
-3. Select your "After" snapshot (NDJSON export from Labelbox).
-4. Click **Compare Snapshots**.
-5. Use the search and filters to audit changes.
+- **Search**: Use the browser's find (Cmd/Ctrl+F) for text search.
+- **Select**: Use checkboxes to pick recordings for export.
+- **History**: Click the parchment icon (📜) to expand version history for a recording.
+- **Instructions**: Guidelines for audit procedures are available via the "Instructions" link in the header.
 
 ## Development
 
-The tool is a static web application.
+The tool is a standalone HTML application. No build step is required for the core functionality.
 
 ```bash
-# Install dependencies
+# Install dependencies (optional, for local serving)
 npm install
 
-# Open public/index.html in a browser
+# Open in browser
+# (Open public/index.html directly or serve with a static server)
 ```
 
-No build step is required for data processing as all parsing and indexing happens client-side.
+Legacy build scripts and static site generation logic have been removed in favor of the full client-side processing model.

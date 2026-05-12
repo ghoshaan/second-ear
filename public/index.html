@@ -65,6 +65,8 @@
   h1 em { font-style: italic; color: var(--amber); font-weight: 600; }
   .meta { display: flex; gap: 16px; font-size: 13px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; align-items: center; }
   .meta b { color: var(--ink); font-weight: 500; letter-spacing: 0; text-transform: none; }
+  .meta-link { color: var(--ink-dim); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.15s, color 0.15s; cursor: pointer; }
+  .meta-link:hover { color: var(--amber); border-color: var(--amber); }
 
   .version-badge { font-size: 11px; color: var(--ink-dim); cursor: pointer; border: 1px solid var(--line-2); padding: 4px 10px; user-select: none; transition: color 0.15s, border-color 0.15s; background: transparent; font-family: inherit; }
   .version-badge:hover { color: var(--amber); border-color: rgba(255,179,71,0.4); }
@@ -252,10 +254,21 @@
       </select>
       <select id="snapshot-select" class="version-badge" style="height: auto; display: none;">
       </select>
+      <a class="meta-link" onclick="showView('instructions')">Instructions</a>
     </div>
   </header>
 
-  <div class="status">
+  <div id="view-instructions" style="display: none; padding: 40px 32px; max-width: 900px; margin: 0 auto;">
+    <h2 style="font-family: 'Fraunces', serif; font-weight: 300; font-size: 29px; margin: 0 0 20px;">Instructions</h2>
+    <div style="background: var(--panel); border: 1px solid var(--line-2); padding: 32px; line-height: 1.6;">
+      <p>Follow the guidelines in the official audit documentation for transcript review and correction procedures.</p>
+      <a href="https://docs.google.com/document/d/1VyWhn2bASVW0YXHHoll3n5_jLmnP7zNt0-sulBfuDLU" target="_blank" class="upload-btn" style="display: inline-block; text-decoration: none; text-align: center; margin-top: 10px;">Open Audit Instructions</a>
+    </div>
+    <button class="sel-btn" style="margin-top: 24px;" onclick="showView('main')">← Back to search</button>
+  </div>
+
+  <div id="view-main">
+    <div class="status">
     <span id="status-l"></span>
     <span id="status-r"></span>
   </div>
@@ -625,7 +638,6 @@ function renderDoc(d) {
   const facetTags = ['airport', 'position', 'date'].map(f =>
     displayDoc[f] ? `<span class="tag tag-facet">${escapeHtml(displayDoc[f])}</span>` : ''
   ).join('');
-  const batchTag = displayDoc.batch ? `<span class="tag tag-batch">${escapeHtml(displayDoc.batch)}</span>` : '';
   
   const reviewTag = displayDoc.reviewed
     ? `<span class="tag tag-reviewed">✓ approved</span>`
@@ -663,7 +675,6 @@ function renderDoc(d) {
        <div class="result-tags">
           ${vBadge}
           ${reviewTag}
-          ${batchTag}
           ${roleTags}
           ${facetTags}
           <span class="tag-dur">${dur}</span>
@@ -922,7 +933,7 @@ function exportRow(d) {
 
   return `<div class="export-row">
     <div class="export-key">${escapeHtml(d.key || d.id || '')}</div>
-    <div class="export-tags">${review}${batch}${labeler}${facets}<span>${dur}</span></div>
+    <div class="export-tags">${review}${labeler}${facets}<span>${dur}</span></div>
     <div class="export-segs">${segs}</div>
     ${versionsHtml}
     ${commentHtml}
@@ -965,6 +976,17 @@ function updateSelectionBar() {
   $('sel-count').textContent = selection.size;
   bar.classList.toggle('visible', selection.size > 0);
 }
+
+function showView(view) {
+  if (view === 'instructions') {
+    $('view-instructions').style.display = 'block';
+    $('view-main').style.display = 'none';
+  } else {
+    $('view-instructions').style.display = 'none';
+    $('view-main').style.display = 'block';
+  }
+}
+window.showView = showView;
 </script>
 </body>
 </html>
