@@ -190,8 +190,8 @@
   .comment-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .pasted-img-wrap { position: relative; width: 120px; height: 80px; border: 1px solid var(--line-2); background: var(--bg); }
   .pasted-img-wrap img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
-  .pasted-img-wrap .remove-img { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; background: var(--red); color: white; border: none; border-radius: 50%; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; font-weight: bold; }
-  .pasted-img-wrap .remove-img:hover { filter: brightness(1.2); }
+  .pasted-img-wrap .remove-img, .pasted-img-wrap .remove-img-gen { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; background: var(--red); color: white; border: none; border-radius: 50%; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; font-weight: bold; }
+  .pasted-img-wrap .remove-img:hover, .pasted-img-wrap .remove-img-gen:hover { filter: brightness(1.2); }
 
   /* Pagination */
   .pagination { display: flex; justify-content: center; align-items: center; gap: 16px; padding: 24px 32px; border-top: 1px solid var(--line); }
@@ -224,13 +224,13 @@
   .export-tag { display: inline-block; }
   .export-tag.reviewed { color: #2a7a3a; font-weight: 600; }
   .export-tag.unapproved { color: #999; }
-  .export-segs { margin: 8pt 0; display: grid; gap: 6pt; }
-  .export-seg { display: grid; grid-template-columns: 75pt 60pt 1fr; gap: 10pt; padding: 3pt 0; font-size: 14pt; align-items: baseline; }
-  .export-seg-time { color: #888; font-variant-numeric: tabular-nums; font-family: 'JetBrains Mono', monospace; font-size: 11pt; }
-  .export-seg-role { font-size: 10pt; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+  .export-segs { margin: 8pt 0; display: block; }
+  .export-seg { display: block; margin-bottom: 12pt; page-break-inside: avoid; break-inside: avoid; }
+  .export-seg-time { color: #888; font-family: 'JetBrains Mono', monospace; font-size: 10pt; display: inline-block; margin-right: 10pt; }
+  .export-seg-role { font-size: 10pt; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; display: inline-block; }
   .export-seg-role.pilot { color: #2a7a3a; }
   .export-seg-role.atc { color: #b86b00; }
-  .export-seg-text { color: #111; overflow-wrap: break-word; word-break: break-word; min-width: 0; }
+  .export-seg-text { display: block; color: #111; margin-top: 2pt; overflow-wrap: break-word; word-break: break-word; min-width: 0; line-height: 1.4; }
   .export-versions-h { font-size: 11pt; font-weight: 600; margin: 18pt 0 6pt; color: #555; text-transform: uppercase; letter-spacing: 0.06em; }
   .export-ver { border-left: 2pt solid #ccc; padding: 4pt 0 4pt 12pt; margin: 8pt 0; page-break-inside: avoid; break-inside: avoid; }
   .export-ver-h { font-size: 11pt; color: #666; margin-bottom: 6pt; }
@@ -291,23 +291,28 @@
   </div>
 
   <div id="view-main">
-    <div class="status">
-    <span id="status-l"></span>
-    <span id="status-r"></span>
-  </div>
-
-  <main id="results"></main>
-  <div class="pagination" id="pagination"></div>
-
-  <div class="selection-bar" id="selection-bar">
-    <span class="selection-bar-count"><b id="sel-count">0</b> selected</span>
-    <div class="selection-bar-actions">
-      <button class="sel-btn" id="sel-clear">clear</button>
-      <button class="sel-btn primary" id="sel-export">export pdf</button>
+    <div style="padding: 0 32px 24px;">
+      <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-faint); margin-bottom: 8px;">General Comments</div>
+      <textarea id="general-comment" class="comment-input" style="min-height: 80px;" placeholder="Enter general comments for the export..."></textarea>
+      <div class="comment-images" id="general-comment-images"></div>
     </div>
-  </div>
+    <div class="status">
+      <span id="status-l"></span>
+      <span id="status-r"></span>
+    </div>
 
-  <footer>built for atc · client-side processing · <a href="https://docs.google.com/document/d/1VyWhn2bASVW0YXHHoll3n5_jLmnP7zNt0-sulBfuDLU/edit?usp=sharing" target="_blank" style="color: inherit; text-decoration: none;">audit instructions</a> · no tracking</footer>
+    <main id="results"></main>
+    <div class="pagination" id="pagination"></div>
+
+    <div class="selection-bar" id="selection-bar">
+      <span class="selection-bar-count"><b id="sel-count">0</b> selected</span>
+      <div class="selection-bar-actions">
+        <button class="sel-btn" id="sel-clear">clear</button>
+        <button class="sel-btn primary" id="sel-export">export pdf</button>
+      </div>
+    </div>
+
+    <footer>built for atc · client-side processing · <a href="https://docs.google.com/document/d/1VyWhn2bASVW0YXHHoll3n5_jLmnP7zNt0-sulBfuDLU/edit?usp=sharing" target="_blank" style="color: inherit; text-decoration: none;">audit instructions</a> · no tracking</footer>
 </div>
 
 <script type="module">
@@ -334,6 +339,9 @@ const SELECTION_KEY = 'atc-search-selection-v1';
 let selection = new Set();
 const READ_KEY = 'atc-search-read-v1';
 let readSet = new Set();
+const GENERAL_COMMENTS_KEY = 'atc-search-general-comments-v1';
+let generalCommentImages = [];
+
 function loadReadSet() {
   try { readSet = new Set(JSON.parse(localStorage.getItem(READ_KEY) || '[]')); } catch { readSet = new Set(); }
 }
@@ -350,9 +358,44 @@ function loadComments() {
     const saved = localStorage.getItem(COMMENTS_KEY);
     if (saved) commentsMap = new Map(JSON.parse(saved));
   } catch { commentsMap = new Map(); }
+  try {
+    const raw = localStorage.getItem(GENERAL_COMMENTS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === 'string') {
+        $('general-comment').value = parsed;
+        generalCommentImages = [];
+      } else {
+        $('general-comment').value = parsed.text || '';
+        generalCommentImages = parsed.images || [];
+      }
+    }
+    renderGeneralCommentImages();
+  } catch {
+    const gen = localStorage.getItem(GENERAL_COMMENTS_KEY);
+    if (gen) $('general-comment').value = gen;
+  }
 }
 function saveComments() {
   localStorage.setItem(COMMENTS_KEY, JSON.stringify([...commentsMap]));
+}
+function saveGeneralComment() {
+  const data = {
+    text: $('general-comment').value,
+    images: generalCommentImages
+  };
+  localStorage.setItem(GENERAL_COMMENTS_KEY, JSON.stringify(data));
+}
+
+function renderGeneralCommentImages() {
+  const container = $('general-comment-images');
+  if (!container) return;
+  container.innerHTML = generalCommentImages.map((src, i) => `
+    <div class="pasted-img-wrap">
+      <img src="${src}" onclick="window.open(this.src)">
+      <button class="remove-img-gen" data-idx="${i}">&times;</button>
+    </div>
+  `).join('');
 }
 
 // ====================== Data Processing ======================
@@ -397,6 +440,7 @@ function parseReview(workflowHistory) {
 function flatten(row, batchName, snapshotDate) {
   const id = row?.data_row?.id;
   const key = row?.data_row?.global_key;
+  const audioUrl = row?.data_row?.row_data;
   const duration = row?.media_attributes?.duration ?? null;
 
   const projects = row?.projects ?? {};
@@ -411,7 +455,7 @@ function flatten(row, batchName, snapshotDate) {
 
   if (!label) {
     return {
-      id, key, duration, projectId, ...facets,
+      id, key, duration, audioUrl, projectId, ...facets,
       batch: batchName, snapshotDate, annotator, createdAt, ...review,
       speakers: 0, roles: [], segments: [], transcript: '',
     };
@@ -483,7 +527,7 @@ function flatten(row, batchName, snapshotDate) {
   const roles = Object.keys(speakerRoles).sort().map(k => speakerRoles[k]);
 
   return {
-    id, key, duration, projectId, ...facets,
+    id, key, duration, audioUrl, projectId, ...facets,
     batch: batchName, snapshotDate, annotator, createdAt, ...review,
     speakers: roles.length,
     roles, segments: dedupedSegments, transcript,
@@ -700,6 +744,10 @@ function renderDoc(d) {
     displayDoc = d.snapshotStates.get(activeSnapshot);
   }
 
+  const audioEl = displayDoc.audioUrl 
+    ? `<div style="margin-top: 12px;"><audio controls preload="none" src="${displayDoc.audioUrl}" style="width: 100%; height: 32px; filter: invert(0.9) hue-rotate(180deg) contrast(1.2);"></audio></div>`
+    : '';
+
   const dur = displayDoc.duration ? `${displayDoc.duration.toFixed(1)}s` : '—';
   const roleTags = (displayDoc.roles || []).map(r => `<span class="tag tag-role ${r}">${escapeHtml(r)}</span>`).join('');
   const facetTags = ['airport', 'position', 'date'].map(f =>
@@ -771,6 +819,7 @@ function renderDoc(d) {
         </div>
       </header>
       <div class="segments">${segs}</div>
+      ${audioEl}
       ${metaLine}
       ${showHistory ? renderHistory(d) : ''}
       ${commentUI}
@@ -942,7 +991,18 @@ function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':
 function escapeAttr(s) { return escapeHtml(s).replace(/`/g, '&#96;'); }
 
 // ====================== Wire up ======================
+
 let commentDebounce;
+
+// General Comment listeners
+$('general-comment').addEventListener('input', () => {
+  clearTimeout(commentDebounce);
+  commentDebounce = setTimeout(saveGeneralComment, 500);
+});
+
+$('general-comment').addEventListener('paste', handlePaste);
+
+// Result listeners
 results.addEventListener('input', e => {
   if (e.target.classList.contains('comment-input')) {
     const id = e.target.dataset.cid;
@@ -963,7 +1023,9 @@ results.addEventListener('input', e => {
   }
 });
 
-results.addEventListener('paste', e => {
+results.addEventListener('paste', handlePaste);
+
+function handlePaste(e) {
   const input = e.target.closest('.comment-input');
   if (!input) return;
 
@@ -974,32 +1036,49 @@ results.addEventListener('paste', e => {
       const reader = new FileReader();
       reader.onload = (event) => {
         const dataUrl = event.target.result;
-        const id = input.dataset.cid;
-        const current = commentsMap.get(id) || { text: '', images: [] };
-        if (typeof current === 'string') {
-          commentsMap.set(id, { text: current, images: [dataUrl] });
+        if (input.id === 'general-comment') {
+          generalCommentImages = [...generalCommentImages, dataUrl];
+          saveGeneralComment();
+          renderGeneralCommentImages();
         } else {
-          current.images = [...(current.images || []), dataUrl];
-          commentsMap.set(id, current);
-        }
-        saveComments();
-        const container = document.getElementById(`imgs-${id}`);
-        if (container) {
-          const final = commentsMap.get(id);
-          container.innerHTML = final.images.map((src, i) => `
-            <div class="pasted-img-wrap">
-              <img src="${src}" onclick="window.open(this.src)">
-              <button class="remove-img" data-cid="${escapeAttr(id)}" data-idx="${i}">&times;</button>
-            </div>
-          `).join('');
+          const id = input.dataset.cid;
+          const current = commentsMap.get(id) || { text: '', images: [] };
+          if (typeof current === 'string') {
+            commentsMap.set(id, { text: current, images: [dataUrl] });
+          } else {
+            current.images = [...(current.images || []), dataUrl];
+            commentsMap.set(id, current);
+          }
+          saveComments();
+          const container = document.getElementById(`imgs-${id}`);
+          if (container) {
+            const final = commentsMap.get(id);
+            container.innerHTML = final.images.map((src, i) => `
+              <div class="pasted-img-wrap">
+                <img src="${src}" onclick="window.open(this.src)">
+                <button class="remove-img" data-cid="${escapeAttr(id)}" data-idx="${i}">&times;</button>
+              </div>
+            `).join('');
+          }
         }
       };
       reader.readAsDataURL(file);
     }
   }
-});
+}
 
-results.addEventListener('click', e => {
+document.addEventListener('click', e => {
+  // Remove General Comment Image
+  const removeGen = e.target.closest('.remove-img-gen');
+  if (removeGen) {
+    const idx = parseInt(removeGen.dataset.idx);
+    generalCommentImages.splice(idx, 1);
+    saveGeneralComment();
+    renderGeneralCommentImages();
+    return;
+  }
+
+  // Remove Row Comment Image
   const removeBtn = e.target.closest('.remove-img');
   if (removeBtn) {
     const id = removeBtn.dataset.cid;
@@ -1026,6 +1105,7 @@ results.addEventListener('click', e => {
     return;
   }
 
+  // History Badge
   const badge = e.target.closest('.version-badge');
   if (badge) {
     const panel = document.getElementById(`hp-${badge.dataset.vid}`);
@@ -1036,6 +1116,7 @@ results.addEventListener('click', e => {
     return;
   }
   
+  // Copy ID
   const copy = e.target.closest('.copy-id');
   if (copy) {
     const text = copy.dataset.copy;
@@ -1062,6 +1143,8 @@ $('sel-clear').addEventListener('click', () => {
   document.querySelectorAll('.select-cb:checked').forEach(cb => cb.checked = false);
 });
 
+$('sel-export').addEventListener('click', exportPdf);
+
 function exportPdf() {
   if (!selection.size) return;
   const docs = allDocs.filter(d => selection.has(d.id));
@@ -1071,7 +1154,6 @@ function exportPdf() {
   const annotators = [...new Set(docs.map(d => d.annotator).filter(Boolean))];
   
   let commonId = '';
-  // Prioritize common labeler (annotator) as per user requirement for audits
   if (annotators.length === 1) {
     commonId = annotators[0];
   } else if (reviewers.length === 1) {
@@ -1090,7 +1172,6 @@ function exportPdf() {
   w.document.open();
   w.document.write(buildExportHtml(docs, exportTitle));
   w.document.close();
-  // Wait for fonts/styles to load before printing
   w.addEventListener('load', () => setTimeout(() => w.print(), 500));
 }
 
@@ -1098,6 +1179,14 @@ function buildExportHtml(docs, title) {
   const today = new Date().toISOString().slice(0, 10);
   const docsHtml = docs.map(d => exportRow(d)).join('');
   const styles = document.querySelector('style').innerHTML;
+  const genComment = $('general-comment').value;
+  const genCommentHtml = (genComment || generalCommentImages.length) ? `
+    <div class="export-comment" style="margin-bottom: 24pt; background: #f0f7f2; border-color: #66bb6a;">
+      <b>General Comments:</b><br>
+      ${genComment ? escapeHtml(genComment).replace(/\n/g, '<br>') : ''}
+      ${generalCommentImages.length ? `<div class="export-comment-imgs">${generalCommentImages.map(src => `<img class="export-comment-img" src="${src}">`).join('')}</div>` : ''}
+    </div>` : '';
+
   return `<!doctype html><html><head><meta charset="utf-8">
 <title>${escapeHtml(title)}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Fraunces:opsz,wght@9..144,600&display=swap">
@@ -1105,6 +1194,7 @@ function buildExportHtml(docs, title) {
 </head><body class="export-body">
 <h1 class="export-h1">ATC Transcript Export</h1>
 <div class="export-meta">${docs.length} recording${docs.length === 1 ? '' : 's'} · exported ${today}</div>
+${genCommentHtml}
 ${docsHtml}
 </body></html>`;
 }
@@ -1119,7 +1209,15 @@ function exportRow(d) {
 
   const labeler = d.annotator ? `<span class="export-tag">labeler: ${escapeHtml(d.annotator)}</span>` : '';
   const reviewer = d.reviewedBy ? `<span class="export-tag">reviewer: ${escapeHtml(d.reviewedBy)}</span>` : '';
-  const batch = d.batch ? `<span class="export-tag">batch: ${escapeHtml(d.batch)}</span>` : '';
+  
+  const segs = (d.segments || []).map(s => `
+    <div class="export-seg">
+      <span class="export-seg-time">${formatMs(s.start)}</span>
+      <span class="export-seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span>
+      <span class="export-seg-text">${escapeHtml(s.text)}</span>
+    </div>
+  `).join('');
+
   const showCurrentStandalone = !(d.versions && d.versions.length);
   const segsHtml = showCurrentStandalone ? `<div class="export-segs">${segs}</div>` : '';
 
@@ -1160,7 +1258,6 @@ function exportVersion(v, d) {
   const pctHtml = pct > 0 ? ` · ${pct}% changed` : '';
   const segs = renderVersionSegs(v.segments, d.segments);
   
-  // Adapt classes for export window
   const exportSegs = segs
     .replace(/class="seg-time"/g, 'class="export-seg-time"')
     .replace(/class="seg-role (.*?)"/g, 'class="export-seg-role $1"')
@@ -1173,9 +1270,6 @@ function exportVersion(v, d) {
     ${exportSegs}
   </div>`;
 }
-
-$('sel-export').addEventListener('click', exportPdf);
-
 
 function loadSelection() {
   try {
