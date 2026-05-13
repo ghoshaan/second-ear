@@ -184,6 +184,11 @@
   .comment-wrap { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--line-2); }
   .comment-input { width: 100%; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink); font-family: inherit; font-size: 13px; padding: 8px 12px; border-radius: 0; outline: none; resize: vertical; min-height: 44px; transition: border-color 0.15s; }
   .comment-input:focus { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+  .comment-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .pasted-img-wrap { position: relative; width: 120px; height: 80px; border: 1px solid var(--line-2); background: var(--bg); }
+  .pasted-img-wrap img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+  .pasted-img-wrap .remove-img { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; background: var(--red); color: white; border: none; border-radius: 50%; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; font-weight: bold; }
+  .pasted-img-wrap .remove-img:hover { filter: brightness(1.2); }
 
   /* Pagination */
   .pagination { display: flex; justify-content: center; align-items: center; gap: 16px; padding: 24px 32px; border-top: 1px solid var(--line); }
@@ -228,6 +233,8 @@
   .export-ver-h { font-size: 11pt; color: #666; margin-bottom: 6pt; }
   .export-ver-h b { color: #111; font-weight: 600; }
   .export-comment { background: #fdfaf5; border-left: 2pt solid #ffb347; padding: 8pt 12pt; margin-top: 10pt; font-size: 13pt; color: #333; }
+  .export-comment-imgs { display: flex; flex-wrap: wrap; gap: 12pt; margin-top: 10pt; }
+  .export-comment-img { max-width: 100%; height: auto; border: 1px solid #ccc; max-height: 4in; object-fit: contain; }
 </style>
 </head>
 <body>
@@ -706,8 +713,22 @@ function renderDoc(d) {
   if (displayDoc.id) metaParts.push(`id <span class="copy-id" data-copy="${escapeAttr(String(displayDoc.id))}">${escapeHtml(String(displayDoc.id))}</span>`);
   const metaLine = metaParts.length ? `<div class="annotator-line">${metaParts.join(' &middot; ')}</div>` : '';
   
-  const savedComment = commentsMap.get(String(d.id)) || '';
-  const commentUI = `<div class="comment-wrap"><textarea class="comment-input" data-cid="${escapeAttr(String(d.id))}" placeholder="Add a comment...">${escapeHtml(savedComment)}</textarea></div>`;
+  const saved = commentsMap.get(String(d.id)) || { text: '', images: [] };
+  const text = typeof saved === 'string' ? saved : (saved.text || '');
+  const images = Array.isArray(saved.images) ? saved.images : [];
+  const imgsHtml = images.map((src, i) => `
+    <div class="pasted-img-wrap">
+      <img src="${src}" onclick="window.open(this.src)">
+      <button class="remove-img" data-cid="${escapeAttr(String(d.id))}" data-idx="${i}">&times;</button>
+    </div>
+  `).join('');
+
+  const commentUI = `
+    <div class="comment-wrap">
+      <textarea class="comment-input" data-cid="${escapeAttr(String(d.id))}" placeholder="Add a comment or paste screenshot...">${escapeHtml(text)}</textarea>
+      <div class="comment-images" id="imgs-${escapeAttr(String(d.id))}">${imgsHtml}</div>
+    </div>
+  `;
 
   const keyEl = (displayDoc.projectId && displayDoc.id)
     ? `<a class="result-key" href="https://app.labelbox.com/projects/${escapeAttr(displayDoc.projectId)}/data-rows/${escapeAttr(displayDoc.id)}" target="_blank">${escapeHtml(displayDoc.key)}</a>`
@@ -906,13 +927,85 @@ results.addEventListener('input', e => {
   if (e.target.classList.contains('comment-input')) {
     const id = e.target.dataset.cid;
     const val = e.target.value;
-    if (val.trim()) commentsMap.set(id, val); else commentsMap.delete(id);
+    const current = commentsMap.get(id) || { text: '', images: [] };
+    if (typeof current === 'string') {
+      commentsMap.set(id, { text: val, images: [] });
+    } else {
+      current.text = val;
+      commentsMap.set(id, current);
+    }
+    const final = commentsMap.get(id);
+    if (!final.text.trim() && (!final.images || final.images.length === 0)) {
+      commentsMap.delete(id);
+    }
     clearTimeout(commentDebounce);
     commentDebounce = setTimeout(saveComments, 500); 
   }
 });
 
+results.addEventListener('paste', e => {
+  const input = e.target.closest('.comment-input');
+  if (!input) return;
+
+  const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+  for (const item of items) {
+    if (item.type.indexOf('image') !== -1) {
+      const file = item.getAsFile();
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target.result;
+        const id = input.dataset.cid;
+        const current = commentsMap.get(id) || { text: '', images: [] };
+        if (typeof current === 'string') {
+          commentsMap.set(id, { text: current, images: [dataUrl] });
+        } else {
+          current.images = [...(current.images || []), dataUrl];
+          commentsMap.set(id, current);
+        }
+        saveComments();
+        const container = document.getElementById(`imgs-${id}`);
+        if (container) {
+          const final = commentsMap.get(id);
+          container.innerHTML = final.images.map((src, i) => `
+            <div class="pasted-img-wrap">
+              <img src="${src}" onclick="window.open(this.src)">
+              <button class="remove-img" data-cid="${escapeAttr(id)}" data-idx="${i}">&times;</button>
+            </div>
+          `).join('');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+});
+
 results.addEventListener('click', e => {
+  const removeBtn = e.target.closest('.remove-img');
+  if (removeBtn) {
+    const id = removeBtn.dataset.cid;
+    const idx = parseInt(removeBtn.dataset.idx);
+    const current = commentsMap.get(id);
+    if (current && current.images) {
+      current.images.splice(idx, 1);
+      if (!current.text.trim() && current.images.length === 0) {
+        commentsMap.delete(id);
+      } else {
+        commentsMap.set(id, current);
+      }
+      saveComments();
+      const container = document.getElementById(`imgs-${id}`);
+      if (container) {
+        container.innerHTML = (current.images || []).map((src, i) => `
+          <div class="pasted-img-wrap">
+            <img src="${src}" onclick="window.open(this.src)">
+            <button class="remove-img" data-cid="${escapeAttr(id)}" data-idx="${i}">&times;</button>
+          </div>
+        `).join('');
+      }
+    }
+    return;
+  }
+
   const badge = e.target.closest('.version-badge');
   if (badge) {
     const panel = document.getElementById(`hp-${badge.dataset.vid}`);
@@ -1016,8 +1109,17 @@ function exportRow(d) {
     versionsHtml = `<div class="export-versions-h">Edit history (${d.versions.length} prior version${d.versions.length === 1 ? '' : 's'})</div>${verBlocks}`;
   }
 
-  const savedComment = commentsMap.get(String(d.id));
-  const commentHtml = savedComment ? `<div class="export-comment"><b>Note:</b><br>${escapeHtml(savedComment).replace(/\n/g, '<br>')}</div>` : '';
+  const saved = commentsMap.get(String(d.id));
+  let commentHtml = '';
+  if (saved) {
+    const text = typeof saved === 'string' ? saved : (saved.text || '');
+    const images = Array.isArray(saved.images) ? saved.images : [];
+    const textPart = text ? `<div>${escapeHtml(text).replace(/\n/g, '<br>')}</div>` : '';
+    const imgsPart = images.length ? `<div class="export-comment-imgs">${images.map(src => `<img class="export-comment-img" src="${src}">`).join('')}</div>` : '';
+    if (textPart || imgsPart) {
+      commentHtml = `<div class="export-comment"><b>Note:</b><br>${textPart}${imgsPart}</div>`;
+    }
+  }
 
   const keyEl = (d.projectId && d.id)
     ? `<a class="export-key" href="https://app.labelbox.com/projects/${escapeAttr(d.projectId)}/data-rows/${escapeAttr(d.id)}" target="_blank">${escapeHtml(d.key || d.id || '')}</a>`
