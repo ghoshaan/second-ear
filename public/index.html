@@ -1017,7 +1017,18 @@ function renderHistory(d) {
 function formatMs(ms) { return ms == null ? '' : (ms / 1000).toFixed(2) + 's'; }
 function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 function escapeAttr(s) { return escapeHtml(s).replace(/`/g, '&#96;'); }
-function renderText(s) { return escapeHtml(s).replace(/--&gt;/g, '&#8594;').replace(/-&gt;/g, '&#8594;'); }
+function renderText(s) {
+  const ARROW = `<span style="font-size:18px;">&#8680;</span>`;
+  return escapeHtml(s).replace(/--&gt;/g, ARROW).replace(/-&gt;/g, ARROW);
+}
+// Render comment text for PDF export: escape HTML, swap "->" / "-->" for a sized arrow glyph, preserve newlines
+function renderCommentText(s) {
+  const ARROW = `<span style="font-size:14px;">&#8680;</span>`;
+  return escapeHtml(s)
+    .replace(/--&gt;/g, ARROW)
+    .replace(/-&gt;/g, ARROW)
+    .replace(/\n/g, '<br>');
+}
 
 // ====================== Wire up ======================
 
@@ -1219,7 +1230,7 @@ function buildExportHtml(docs, title) {
   const genCommentHtml = (genComment || generalCommentImages.length) ? `
     <div class="export-comment" style="margin-bottom: 24pt; background: #f0f7f2; border-color: #66bb6a;">
       <b>General Comments:</b><br>
-      ${genComment ? escapeHtml(genComment).replace(/\n/g, '<br>') : ''}
+      ${genComment ? renderCommentText(genComment) : ''}
       ${generalCommentImages.length ? `<div class="export-comment-imgs">${generalCommentImages.map(src => `<img class="export-comment-img" src="${src}">`).join('')}</div>` : ''}
     </div>` : '';
 
@@ -1268,7 +1279,7 @@ function exportRow(d) {
   if (saved) {
     const text = typeof saved === 'string' ? saved : (saved.text || '');
     const images = Array.isArray(saved.images) ? saved.images : [];
-    const textPart = text ? `<div>${escapeHtml(text).replace(/\n/g, '<br>')}</div>` : '';
+    const textPart = text ? `<div>${renderCommentText(text)}</div>` : '';
     const imgsPart = images.length ? `<div class="export-comment-imgs">${images.map(src => `<img class="export-comment-img" src="${src}">`).join('')}</div>` : '';
     if (textPart || imgsPart) {
       commentHtml = `<div class="export-comment"><b>Note:</b><br>${textPart}${imgsPart}</div>`;
