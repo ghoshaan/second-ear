@@ -212,32 +212,32 @@
   }
 
   /* PDF Export Styles */
-  @page { size: landscape; margin: 0.5in; }
-  .export-body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif; color: #111; font-size: 14pt; line-height: 1.5; margin: 0; padding: 0.1in; }
-  .export-h1 { font-size: 22pt; margin: 0 0 6pt; font-weight: 600; font-family: 'Fraunces', serif; }
-  .export-meta { font-size: 11pt; color: #666; margin-bottom: 24pt; padding-bottom: 12pt; border-bottom: 1px solid #ccc; text-transform: uppercase; letter-spacing: 0.1em; }
-  .export-row { page-break-inside: avoid; break-inside: avoid; margin-bottom: 24pt; padding-bottom: 18pt; border-bottom: 1px solid #ddd; }
+  @page { size: landscape; margin: 0.45in; }
+  .export-body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif; color: #111; font-size: 10pt; line-height: 1.4; margin: 0; padding: 0; }
+  .export-h1 { font-size: 15pt; margin: 0 0 3pt; font-weight: 600; font-family: 'Fraunces', serif; }
+  .export-meta { font-size: 8.5pt; color: #666; margin-bottom: 12pt; padding-bottom: 7pt; border-bottom: 1px solid #ccc; text-transform: uppercase; letter-spacing: 0.1em; }
+  .export-row { page-break-inside: avoid; break-inside: avoid; margin-bottom: 12pt; padding-bottom: 10pt; border-bottom: 1px solid #e0e0e0; }
   .export-row:last-child { border-bottom: none; }
-  .export-key { font-family: 'JetBrains Mono', monospace; font-size: 15pt; font-weight: 600; word-break: break-all; margin-bottom: 6pt; }
-  a.export-key { color: #0066cc; text-decoration: underline; display: block; }
-  .export-tags { font-size: 11pt; color: #555; margin-bottom: 12pt; display: flex; gap: 14pt; flex-wrap: wrap; }
+  .export-key { font-family: 'JetBrains Mono', monospace; font-size: 10.5pt; font-weight: 600; word-break: break-all; margin-bottom: 2pt; }
+  a.export-key { color: #0055aa; text-decoration: underline; display: block; }
+  .export-tags { font-size: 8.5pt; color: #555; margin-bottom: 5pt; display: flex; gap: 10pt; flex-wrap: wrap; }
   .export-tag { display: inline-block; }
   .export-tag.reviewed { color: #2a7a3a; font-weight: 600; }
   .export-tag.unapproved { color: #999; }
-  .export-segs { margin: 8pt 0; display: block; }
-  .export-seg { display: block; margin-bottom: 12pt; page-break-inside: avoid; break-inside: avoid; }
-  .export-seg-time { color: #888; font-family: 'JetBrains Mono', monospace; font-size: 10pt; display: inline-block; margin-right: 10pt; }
-  .export-seg-role { font-size: 10pt; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; display: inline-block; }
+  .export-segs { margin: 4pt 0; display: block; }
+  .export-seg { display: grid; grid-template-columns: 40pt auto 1fr; gap: 4pt; align-items: start; margin-bottom: 1.5pt; }
+  .export-seg-time { color: #999; font-family: 'JetBrains Mono', monospace; font-size: 8.5pt; }
+  .export-seg-role { font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
   .export-seg-role.pilot { color: #2a7a3a; }
   .export-seg-role.atc { color: #b86b00; }
-  .export-seg-text { display: block; color: #111; margin-top: 2pt; overflow-wrap: break-word; word-break: break-word; min-width: 0; line-height: 1.4; }
-  .export-versions-h { font-size: 11pt; font-weight: 600; margin: 18pt 0 6pt; color: #555; text-transform: uppercase; letter-spacing: 0.06em; }
-  .export-ver { border-left: 2pt solid #ccc; padding: 4pt 0 4pt 12pt; margin: 8pt 0; page-break-inside: avoid; break-inside: avoid; }
-  .export-ver-h { font-size: 11pt; color: #666; margin-bottom: 6pt; }
+  .export-seg-text { color: #111; overflow-wrap: break-word; word-break: break-word; line-height: 1.35; }
+  .export-versions-h { font-size: 8.5pt; font-weight: 700; margin: 8pt 0 3pt; color: #555; text-transform: uppercase; letter-spacing: 0.06em; }
+  .export-ver { border-left: 2pt solid #ddd; padding: 3pt 0 3pt 9pt; margin: 4pt 0; page-break-inside: avoid; break-inside: avoid; }
+  .export-ver-h { font-size: 8.5pt; color: #666; margin-bottom: 3pt; }
   .export-ver-h b { color: #111; font-weight: 600; }
-  .export-comment { background: #fdfaf5; border-left: 2pt solid #ffb347; padding: 8pt 12pt; margin-top: 10pt; font-size: 13pt; color: #333; }
-  .export-comment-imgs { display: flex; flex-wrap: wrap; gap: 12pt; margin-top: 10pt; }
-  .export-comment-img { max-width: 100%; height: auto; border: 1px solid #ccc; max-height: 4in; object-fit: contain; }
+  .export-comment { background: #fdfaf5; border-left: 2pt solid #ffb347; padding: 5pt 9pt; margin-top: 6pt; font-size: 9.5pt; color: #333; }
+  .export-comment-imgs { display: flex; flex-wrap: wrap; gap: 8pt; margin-top: 7pt; }
+  .export-comment-img { max-width: 100%; height: auto; border: 1px solid #ccc; max-height: 3in; object-fit: contain; }
 </style>
 </head>
 <body>
