@@ -290,18 +290,9 @@
       <select id="snapshot-select" class="version-badge" style="height: auto; display: none;">
       </select>
       <a class="meta-link" onclick="location.reload()">Back</a>
-      <a class="meta-link" onclick="showView('instructions')">Instructions</a>
+      <a class="meta-link" href="https://docs.google.com/document/d/1VyWhn2bASVW0YXHHoll3n5_jLmnP7zNt0-sulBfuDLU" target="_blank">Instructions</a>
     </div>
   </header>
-
-  <div id="view-instructions" style="display: none; padding: 40px 32px; max-width: 900px; margin: 0 auto;">
-    <h2 style="font-family: 'Fraunces', serif; font-weight: 300; font-size: 29px; margin: 0 0 20px;">Instructions</h2>
-    <div style="background: var(--panel); border: 1px solid var(--line-2); padding: 32px; line-height: 1.6;">
-      <p>Follow the guidelines in the official audit documentation for transcript review and correction procedures.</p>
-      <a href="https://docs.google.com/document/d/1VyWhn2bASVW0YXHHoll3n5_jLmnP7zNt0-sulBfuDLU" target="_blank" class="upload-btn" style="display: inline-block; text-decoration: none; text-align: center; margin-top: 10px;">Open Audit Instructions</a>
-    </div>
-    <button class="sel-btn" style="margin-top: 24px;" onclick="showView('main')">← Back to search</button>
-  </div>
 
   <div id="view-main">
     <div style="padding: 0 32px 24px;">
@@ -1329,17 +1320,6 @@ function updateSelectionBar() {
   $('sel-count').textContent = selection.size;
   bar.classList.toggle('visible', selection.size > 0);
 }
-
-function showView(view) {
-  if (view === 'instructions') {
-    $('view-instructions').style.display = 'block';
-    $('view-main').style.display = 'none';
-  } else {
-    $('view-instructions').style.display = 'none';
-    $('view-main').style.display = 'block';
-  }
-}
-window.showView = showView;
 </script>
 </body>
 </html>
