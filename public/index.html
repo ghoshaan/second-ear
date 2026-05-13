@@ -198,8 +198,13 @@
   }
   /* Comments */
   .comment-wrap { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--line-2); }
+  .comment-row { display: flex; gap: 8px; align-items: flex-start; }
+  .comment-row .comment-input { flex: 1; width: auto; }
   .comment-input { width: 100%; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink); font-family: inherit; font-size: 13px; padding: 8px 12px; border-radius: 0; outline: none; resize: vertical; min-height: 44px; transition: border-color 0.15s; }
   .comment-input:focus { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+  .major-btn { flex-shrink: 0; width: 66px; min-height: 44px; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink-dim); font-size: 11px; font-family: inherit; cursor: pointer; transition: all 0.15s; line-height: 1.3; }
+  .major-btn:hover { border-color: #c0392b; color: #c0392b; }
+  .major-btn.active { background: rgba(192,57,43,0.12); border-color: #c0392b; color: #c0392b; font-weight: 600; }
   .comment-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .pasted-img-wrap { position: relative; width: 120px; height: 80px; border: 1px solid var(--line-2); background: var(--bg); }
   .pasted-img-wrap img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
@@ -237,6 +242,9 @@
   .export-tag { display: inline-block; }
   .export-tag.reviewed { color: #2a7a3a; font-weight: 600; }
   .export-tag.unapproved { color: #999; }
+  .export-tag.major { color: #c0392b; font-weight: 600; }
+  .export-stats { font-size: 9pt; color: #555; margin-bottom: 14pt; display: flex; gap: 16pt; }
+  .export-stats-major { color: #c0392b; font-weight: 600; }
   .export-segs { margin: 4pt 0; display: block; }
   .export-seg { display: grid; grid-template-columns: 40pt auto 1fr; gap: 4pt; align-items: start; margin-bottom: 1.5pt; }
   .export-seg-time { color: #999; font-family: 'JetBrains Mono', monospace; font-size: 8.5pt; }
@@ -341,15 +349,15 @@ let activeSnapshot = '';
 
 const SELECTION_KEY = 'atc-search-selection-v1';
 let selection = new Set();
-const READ_KEY = 'atc-search-read-v1';
-let readSet = new Set();
+const MAJOR_KEY = 'atc-search-major-v1';
+let majorSet = new Set();
 const GENERAL_COMMENTS_KEY = 'atc-search-general-comments-v1';
 let generalCommentImages = [];
 
-function loadReadSet() {
-  try { readSet = new Set(JSON.parse(localStorage.getItem(READ_KEY) || '[]')); } catch { readSet = new Set(); }
+function loadMajor() {
+  try { majorSet = new Set(JSON.parse(localStorage.getItem(MAJOR_KEY) || '[]')); } catch { majorSet = new Set(); }
 }
-function saveReadSet() { localStorage.setItem(READ_KEY, JSON.stringify([...readSet])); }
+function saveMajor() { localStorage.setItem(MAJOR_KEY, JSON.stringify([...majorSet])); }
 
 const COMMENTS_KEY = 'atc-search-comments-v1';
 let commentsMap = new Map();
@@ -636,8 +644,8 @@ async function processSnapshots(files) {
 
   showApp();
   populateSnapshotSelect();
-  loadReadSet();
   loadComments();
+  loadMajor();
   $('m-docs').textContent = allDocs.length.toLocaleString();
   statusL.textContent = `ready · ${allDocs.length.toLocaleString()} recordings`;
   rerun();
@@ -773,11 +781,6 @@ function renderDoc(d) {
     : '';
 
   const dur = displayDoc.duration ? `${displayDoc.duration.toFixed(1)}s` : '—';
-  const roleTags = (displayDoc.roles || []).map(r => `<span class="tag tag-role ${r}">${escapeHtml(r)}</span>`).join('');
-  const facetTags = ['airport', 'position', 'date'].map(f =>
-    displayDoc[f] ? `<span class="tag tag-facet">${escapeHtml(displayDoc[f])}</span>` : ''
-  ).join('');
-  
   const isMissingHistory = snapshots.length > 1 && d.snapshotStates.size === 1;
   const missingBadge = isMissingHistory 
     ? `<span class="tag tag-missing-history" title="Only exists in one snapshot">missing history</span>` 
@@ -815,9 +818,13 @@ function renderDoc(d) {
     </div>
   `).join('');
 
+  const isMajor = majorSet.has(String(d.id));
   const commentUI = `
     <div class="comment-wrap">
-      <textarea class="comment-input" data-cid="${escapeAttr(String(d.id))}" placeholder="Add a comment or paste screenshot...">${escapeHtml(text)}</textarea>
+      <div class="comment-row">
+        <textarea class="comment-input" data-cid="${escapeAttr(String(d.id))}" placeholder="Add a comment or paste screenshot...">${escapeHtml(text)}</textarea>
+        <button class="major-btn${isMajor ? ' active' : ''}" data-mid="${escapeAttr(String(d.id))}">&#9873;<br>Major</button>
+      </div>
       <div class="comment-images" id="imgs-${escapeAttr(String(d.id))}">${imgsHtml}</div>
     </div>
   `;
@@ -841,8 +848,6 @@ function renderDoc(d) {
           ${vBadge}
           ${missingBadge}
           ${reviewTag}
-          ${roleTags}
-          ${facetTags}
           <span class="tag-dur">${dur}</span>
         </div>
       </header>
@@ -1059,7 +1064,14 @@ results.addEventListener('input', e => {
       commentsMap.delete(id);
     }
     clearTimeout(commentDebounce);
-    commentDebounce = setTimeout(saveComments, 500); 
+    commentDebounce = setTimeout(saveComments, 500);
+    if (val.trim() && !selection.has(id)) {
+      selection.add(id);
+      saveSelection();
+      updateSelectionBar();
+      const cb = document.querySelector(`.select-cb[data-sel="${CSS.escape(id)}"]`);
+      if (cb) cb.checked = true;
+    }
   }
 });
 
@@ -1090,6 +1102,13 @@ function handlePaste(e) {
             commentsMap.set(id, current);
           }
           saveComments();
+          if (!selection.has(id)) {
+            selection.add(id);
+            saveSelection();
+            updateSelectionBar();
+            const cb = document.querySelector(`.select-cb[data-sel="${CSS.escape(id)}"]`);
+            if (cb) cb.checked = true;
+          }
           const container = document.getElementById(`imgs-${id}`);
           if (container) {
             const final = commentsMap.get(id);
@@ -1108,6 +1127,28 @@ function handlePaste(e) {
 }
 
 document.addEventListener('click', e => {
+  // Major button
+  const majorBtn = e.target.closest('.major-btn');
+  if (majorBtn) {
+    const id = majorBtn.dataset.mid;
+    if (majorSet.has(id)) {
+      majorSet.delete(id);
+      majorBtn.classList.remove('active');
+    } else {
+      majorSet.add(id);
+      majorBtn.classList.add('active');
+      if (!selection.has(id)) {
+        selection.add(id);
+        saveSelection();
+        updateSelectionBar();
+        const cb = document.querySelector(`.select-cb[data-sel="${CSS.escape(id)}"]`);
+        if (cb) cb.checked = true;
+      }
+    }
+    saveMajor();
+    return;
+  }
+
   // Remove General Comment Image
   const removeGen = e.target.closest('.remove-img-gen');
   if (removeGen) {
@@ -1224,6 +1265,10 @@ function exportPdf() {
 
 function buildExportHtml(docs, title) {
   const today = new Date().toISOString().slice(0, 10);
+  const pcts = docs.filter(d => d.versions && d.versions.length).map(d => wordDiff(d.versions[0].transcript, d.transcript).pct);
+  const avgPct = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
+  const majorCount = docs.filter(d => majorSet.has(String(d.id))).length;
+  const statsHtml = (avgPct !== null || majorCount > 0) ? `<div class="export-stats">${avgPct !== null ? `<span>avg. ${avgPct}% changed</span>` : ''}${majorCount > 0 ? `<span class="export-stats-major">${majorCount} major</span>` : ''}</div>` : '';
   const docsHtml = docs.map(d => exportRow(d)).join('');
   const styles = document.querySelector('style').innerHTML;
   const genComment = $('general-comment').value;
@@ -1241,6 +1286,7 @@ function buildExportHtml(docs, title) {
 </head><body class="export-body">
 <h1 class="export-h1">ATC Transcript Export</h1>
 <div class="export-meta">${docs.length} recording${docs.length === 1 ? '' : 's'} · exported ${today}</div>
+${statsHtml}
 ${genCommentHtml}
 ${docsHtml}
 </body></html>`;
@@ -1248,15 +1294,22 @@ ${docsHtml}
 
 function exportRow(d) {
   const dur = d.duration ? `${d.duration.toFixed(1)}s` : '—';
-  const facets = ['airport', 'position', 'date', 'time'].filter(f => d[f]).map(f => `<span class="export-tag">${escapeHtml(d[f])}</span>`).join('');   
-  
+  const facets = ['airport', 'position', 'date', 'time'].filter(f => d[f]).map(f => `<span class="export-tag">${escapeHtml(d[f])}</span>`).join('');
+
   const review = d.reviewed
     ? `<span class="export-tag reviewed">✓ approved</span>`
     : (d.reviewedBy ? '' : `<span class="export-tag unapproved">unapproved</span>`);
 
   const labeler = d.annotator ? `<span class="export-tag">labeler: ${escapeHtml(d.annotator)}</span>` : '';
   const reviewer = d.reviewedBy ? `<span class="export-tag">reviewer: ${escapeHtml(d.reviewedBy)}</span>` : '';
-  
+
+  let pctTag = '';
+  if (d.versions && d.versions.length) {
+    const { pct } = wordDiff(d.versions[0].transcript, d.transcript);
+    if (pct > 0) pctTag = `<span>${pct}% changed</span>`;
+  }
+  const majorTag = majorSet.has(String(d.id)) ? `<span class="export-tag major">&#9873; major</span>` : '';
+
   const segs = (d.segments || []).map(s => `
     <div class="export-seg">
       <span class="export-seg-time">${formatMs(s.start)}</span>
@@ -1270,8 +1323,7 @@ function exportRow(d) {
 
   let versionsHtml = '';
   if (d.versions && d.versions.length) {
-    const verBlocks = [...d.versions].reverse().map(v => exportVersion(v, d)).join('');
-    versionsHtml = `<div class="export-versions-h">Edit history (${d.versions.length} prior version${d.versions.length === 1 ? '' : 's'})</div>${verBlocks}`;
+    versionsHtml = [...d.versions].reverse().map(v => exportVersion(v, d)).join('');
   }
 
   const saved = commentsMap.get(String(d.id));
@@ -1292,7 +1344,7 @@ function exportRow(d) {
 
   return `<div class="export-row">
     ${keyEl}
-    <div class="export-tags">${review}${labeler}${reviewer}${facets}<span>${dur}</span></div>
+    <div class="export-tags">${majorTag}${review}${labeler}${reviewer}${facets}<span>${dur}</span>${pctTag}</div>
     ${segsHtml}
     ${versionsHtml}
     ${commentHtml}
@@ -1300,11 +1352,8 @@ function exportRow(d) {
 }
 
 function exportVersion(v, d) {
-  const date = v.snapshotDate || '—';
-  const { pct } = wordDiff(v.transcript, d.transcript);
-  const pctHtml = pct > 0 ? ` · ${pct}% changed` : '';
   const segs = renderVersionSegs(v.segments, d.segments);
-  
+
   const exportSegs = segs
     .replace(/class="seg-time"/g, 'class="export-seg-time"')
     .replace(/class="seg-role (.*?)"/g, 'class="export-seg-role $1"')
@@ -1312,10 +1361,7 @@ function exportVersion(v, d) {
     .replace(/class="seg"/g, 'class="export-seg"')
     .replace(/class="segments"/g, 'class="export-segs"');
 
-  return `<div class="export-ver">
-    <div class="export-ver-h"><b>${escapeHtml(date)}</b> · initial state${pctHtml}</div>
-    ${exportSegs}
-  </div>`;
+  return `<div class="export-ver">${exportSegs}</div>`;
 }
 
 function loadSelection() {

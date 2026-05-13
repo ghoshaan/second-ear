@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\atc-search\" -Directory | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\atc-search\" -Recurse | Where-Object { !$_.PSIsContainer } | Select-Object -ExpandProperty FullName | Select-Object -First 50)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\atc-search\" -Recurse | ForEach-Object { $_.FullName })"
     ]
   }
 }
