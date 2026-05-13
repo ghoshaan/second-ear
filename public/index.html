@@ -119,6 +119,19 @@
   }
   .copy-id:hover { color: var(--amber); border-color: rgba(255,179,71,0.4); }
   .copy-id.copied { color: var(--pilot); border-color: rgba(111,207,151,0.4); }
+  .copy-key {
+    flex-shrink: 0; user-select: none; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; padding: 0; border: 1px solid transparent;
+    color: var(--ink-faint); background: transparent;
+    vertical-align: middle;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .copy-key svg { width: 12px; height: 12px; display: block; }
+  .copy-key:hover { color: var(--amber); border-color: rgba(255,179,71,0.4); }
+  .copy-key.copied { color: var(--pilot); border-color: rgba(111,207,151,0.4); }
+  .result-key-inner { flex: 1; min-width: 0; }
+  .result-key-inner .result-key { display: inline; flex: none; }
 
   .history-panel { display: none; margin-top: 10px; border-left: 2px solid var(--line-2); padding-left: 14px; }
   .history-panel.open { display: block; }
@@ -821,14 +834,18 @@ function renderDoc(d) {
   const keyEl = (displayDoc.projectId && displayDoc.id)
     ? `<a class="result-key" href="https://app.labelbox.com/projects/${escapeAttr(displayDoc.projectId)}/data-rows/${escapeAttr(displayDoc.id)}" target="_blank">${escapeHtml(displayDoc.key)}</a>`
     : `<div class="result-key">${escapeHtml(displayDoc.key)}</div>`;
-  
+
+  const copyKeyEl = displayDoc.key
+    ? `<span class="copy-key" data-copy="${escapeAttr(displayDoc.key)}" title="Copy global key" role="button" aria-label="Copy global key"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M3 11V3a1 1 0 0 1 1-1h7"/></svg></span>`
+    : '';
+
   const isSel = selection.has(d.id) ? 'checked' : '';
   const cbEl = `<input type="checkbox" class="select-cb" data-sel="${escapeAttr(String(d.id))}" ${isSel}>`;
 
   return `
     <article class="result" data-docid="${escapeAttr(String(d.id))}">
       <header class="result-head">
-        <div class="result-key-wrap">${cbEl}${keyEl}</div>
+        <div class="result-key-wrap">${cbEl}<span class="result-key-inner">${keyEl}${copyKeyEl}</span></div>
        <div class="result-tags">
           ${vBadge}
           ${missingBadge}
@@ -1137,14 +1154,21 @@ document.addEventListener('click', e => {
     return;
   }
   
-  // Copy ID
-  const copy = e.target.closest('.copy-id');
+  // Copy ID / Copy global key icon
+  const copy = e.target.closest('.copy-id, .copy-key');
   if (copy) {
     const text = copy.dataset.copy;
     if (text && navigator.clipboard) {
       navigator.clipboard.writeText(text).then(() => {
-        const orig = copy.textContent; copy.classList.add('copied'); copy.textContent = 'copied';
-        setTimeout(() => { copy.classList.remove('copied'); copy.textContent = orig; }, 700);
+        copy.classList.add('copied');
+        if (copy.classList.contains('copy-key')) {
+          // Icon button — just flash, don't replace the SVG
+          setTimeout(() => copy.classList.remove('copied'), 700);
+        } else {
+          const orig = copy.textContent;
+          copy.textContent = 'copied';
+          setTimeout(() => { copy.classList.remove('copied'); copy.textContent = orig; }, 700);
+        }
       }).catch(() => {});
     }
   }
