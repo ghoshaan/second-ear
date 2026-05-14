@@ -66,6 +66,7 @@
   header { border-bottom: 1px solid var(--line); padding: 28px 32px 22px; display: flex; align-items: baseline; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
   h1 { font-family: 'Fraunces', serif; font-weight: 300; font-size: 29px; margin: 0; letter-spacing: -0.01em; }
   h1 em { font-style: italic; color: var(--amber); font-weight: 600; }
+  h1#site-title:hover { opacity: 0.7; transition: opacity 0.15s; }
   .meta { display: flex; gap: 16px; font-size: 13px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; align-items: center; }
   .meta b { color: var(--ink); font-weight: 500; letter-spacing: 0; text-transform: none; }
   .meta-link { color: var(--ink-dim); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.15s, color 0.15s; cursor: pointer; }
@@ -345,7 +346,7 @@
 
 <div class="app" id="app">
   <header>
-    <h1>lazy<em>detective</em></h1>
+    <h1 id="site-title" style="cursor:pointer;">lazy<em>detective</em></h1>
     <div class="meta">
       <span><b id="m-docs">—</b> recordings</span>
       <select id="view-mode" class="version-badge" style="height: auto;">
@@ -358,7 +359,6 @@
       </select>
       <select id="snapshot-select" class="version-badge" style="height: auto; display: none;">
       </select>
-      <a class="meta-link" id="back-btn" style="cursor:pointer;">Back</a>
       <a class="meta-link" onclick="document.getElementById('pdf-modal-overlay').classList.add('open')" style="cursor:pointer;">Instructions</a>
     </div>
   </header>
@@ -778,7 +778,7 @@ async function clearDbAndReload() {
   try { await clearDb(); } catch {}
   location.reload();
 }
-$('back-btn')?.addEventListener('click', clearDbAndReload);
+$('site-title')?.addEventListener('click', clearDbAndReload);
 
 // ====================== File Handling ======================
 
