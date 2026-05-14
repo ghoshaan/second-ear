@@ -1376,11 +1376,11 @@ document.addEventListener('click', e => {
     const id = tlDel.dataset.tldocid;
     const container = document.getElementById(`tled-rows-${id}`);
     if (container) {
-      const rows = container.querySelectorAll('[data-tlrow]');
+      const rows = container.querySelectorAll('.tl-seg-row');
       if (rows[rowIdx]) rows[rowIdx].remove();
-      container.querySelectorAll('[data-tlrow]').forEach((row, i) => {
+      container.querySelectorAll('.tl-seg-row').forEach((row, i) => {
         row.dataset.tlrow = i;
-        row.querySelectorAll('[data-tlrow]').forEach(el => el.dataset.tlrow = i);
+        row.querySelectorAll('.tl-seg-row').forEach(el => el.dataset.tlrow = i);
         const btn = row.querySelector('[data-tldel]');
         if (btn) btn.dataset.tldel = i;
       });
@@ -1394,7 +1394,7 @@ document.addEventListener('click', e => {
     const id = tlAdd.dataset.tladd;
     const container = document.getElementById(`tled-rows-${id}`);
     if (!container) return;
-    const existing = container.querySelectorAll('[data-tlrow]');
+    const existing = container.querySelectorAll('.tl-seg-row');
     const newIdx = existing.length;
     const lastRow = existing[existing.length - 1];
     const lastStart = lastRow ? Number(lastRow.dataset.tlend || lastRow.dataset.tlstart || 0) : 0;
@@ -1427,7 +1427,7 @@ document.addEventListener('click', e => {
     if (!doc) return;
     const container = document.getElementById(`tled-rows-${id}`);
     if (!container) return;
-    const rows = container.querySelectorAll('[data-tlrow]');
+    const rows = container.querySelectorAll('.tl-seg-row');
     const newSegs = [];
     rows.forEach(row => {
       const roleEl = row.querySelector('[data-tlfield="role"]');
