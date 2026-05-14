@@ -944,11 +944,10 @@ function renderDoc(d) {
     ? `<span class="tag tag-reviewed">✓ approved</span>`
     : (displayDoc.reviewedBy ? '' : `<span class="tag tag-unapproved">unapproved</span>`);
   
-  const vBadge = (showHistory && d.versions.length > 0)
-    ? `<button class="version-badge" data-vid="${escapeAttr(String(d.id))}">&#x1F4DC; ${d.versions.length}</button>`
-    : '';
-
   const hasTlEdit = tlEditsMap.has(String(d.id));
+  const vBadge = (showHistory && (d.versions.length > 0 || hasTlEdit))
+    ? `<button class="version-badge" data-vid="${escapeAttr(String(d.id))}">&#x1F4DC;${d.versions.length > 0 ? ' ' + d.versions.length : ''}</button>`
+    : '';
   const tlBadge = showHistory
     ? `<button class="tag tag-tl-edit${hasTlEdit ? ' has-edit' : ''}" data-tlbtn="${escapeAttr(String(d.id))}">${hasTlEdit ? 'Edit ✎' : 'Edit'}</button>`
     : '';
@@ -1232,9 +1231,22 @@ function renderIndexedSegDiff(oldSegs, newSegs) {
 }
 
 function renderHistory(d) {
-  if (!d.versions || !d.versions.length) return '';
+  const id = String(d.id);
+  const tlEdit = tlEditsMap.get(id);
+  const hasVersions = d.versions && d.versions.length > 0;
+
+  if (!hasVersions) {
+    if (!tlEdit) return '';
+    // Single-snapshot row edited by TL — diff labeler segments vs TL segments
+    const labelerTranscript = (d.segments || []).map(s => s.text).join(' ');
+    const tlTranscript = tlEdit.segments.map(s => s.text).join(' ');
+    const pct = wordDiff(labelerTranscript, tlTranscript).pct;
+    const pctHtml = pct > 0 ? ` · <span style="color:var(--red);opacity:0.75">${pct}% changed</span>` : '';
+    const segs = renderIndexedSegDiff(d.segments, tlEdit.segments);
+    return `<div class="history-panel" id="hp-${escapeAttr(id)}"><div class="version-block prior"><div class="version-block-header"><span class="version-block-glyph">⟲</span><span class="version-block-desc"><span class="tl-diff-label" style="display:inline;">labeler &#x2192; TL final</span>${pctHtml}</span></div>${segs}</div></div>`;
+  }
+
   const initial = d.versions[0];
-  const tlEdit = tlEditsMap.get(String(d.id));
 
   if (tlEdit) {
     // Labeler → TL final using index-based pairing so word diffs work regardless of timestamp drift
@@ -1242,14 +1254,14 @@ function renderHistory(d) {
     const pct = wordDiff(initial.transcript, finalTranscript).pct;
     const pctHtml = pct > 0 ? ` · <span style="color:var(--red);opacity:0.75">${pct}% changed</span>` : '';
     const segs = renderIndexedSegDiff(initial.segments, tlEdit.segments);
-    return `<div class="history-panel" id="hp-${escapeAttr(String(d.id))}"><div class="version-block prior"><div class="version-block-header"><span class="version-block-date">${escapeHtml(initial.snapshotDate || '—')}</span><span class="version-block-glyph">⟲</span><span class="version-block-desc"><span class="tl-diff-label" style="display:inline;">labeler &#x2192; TL final</span>${pctHtml}</span></div>${segs}</div></div>`;
+    return `<div class="history-panel" id="hp-${escapeAttr(id)}"><div class="version-block prior"><div class="version-block-header"><span class="version-block-date">${escapeHtml(initial.snapshotDate || '—')}</span><span class="version-block-glyph">⟲</span><span class="version-block-desc"><span class="tl-diff-label" style="display:inline;">labeler &#x2192; TL final</span>${pctHtml}</span></div>${segs}</div></div>`;
   }
 
   // No TL edits — original behaviour: labeler → reviewer using timestamp-based matching
   const pct = d.pct || 0;
   const pctHtml = pct > 0 ? ` · <span style="color:var(--red);opacity:0.75">${pct}% changed</span>` : '';
   const segs = renderVersionSegs(initial.segments, d.segments);
-  return `<div class="history-panel" id="hp-${escapeAttr(String(d.id))}"><div class="version-block prior"><div class="version-block-header"><span class="version-block-date">${escapeHtml(initial.snapshotDate || '—')}</span><span class="version-block-glyph">⟲</span><span class="version-block-desc">initial state${pctHtml}</span></div>${segs}</div></div>`;
+  return `<div class="history-panel" id="hp-${escapeAttr(id)}"><div class="version-block prior"><div class="version-block-header"><span class="version-block-date">${escapeHtml(initial.snapshotDate || '—')}</span><span class="version-block-glyph">⟲</span><span class="version-block-desc">initial state${pctHtml}</span></div>${segs}</div></div>`;
 }
 
 function formatMs(ms) { return ms == null ? '' : (ms / 1000).toFixed(2) + 's'; }
@@ -1441,6 +1453,11 @@ document.addEventListener('click', e => {
     });
     tlEditsMap.set(id, { segments: newSegs, editedAt: new Date().toISOString() });
     saveTlEdits();
+    if (!selection.has(id)) {
+      selection.add(id);
+      saveSelection();
+      updateSelectionBar();
+    }
     const article = document.querySelector(`article[data-docid="${CSS.escape(id)}"]`);
     if (article) {
       const newHtml = renderDoc(doc);
@@ -1676,9 +1693,14 @@ function exportRow(d) {
   const finalSegments = tlEdit ? tlEdit.segments : d.segments;
   const finalTranscript = finalSegments.map(s => s.text).join(' ');
 
+  const hasVersions = !!(d.versions && d.versions.length);
   let pctTag = '';
-  if (d.versions && d.versions.length) {
+  if (hasVersions) {
     const { pct } = wordDiff(d.versions[0].transcript, finalTranscript);
+    if (pct > 0) pctTag = `<span>${pct}% changed</span>`;
+  } else if (tlEdit) {
+    const labelerTranscript = (d.segments || []).map(s => s.text).join(' ');
+    const { pct } = wordDiff(labelerTranscript, finalTranscript);
     if (pct > 0) pctTag = `<span>${pct}% changed</span>`;
   }
   const majorTag = majorSet.has(String(d.id)) ? `<span class="export-tag major">&#9873; major</span>` : '';
@@ -1692,17 +1714,20 @@ function exportRow(d) {
     </div>
   `).join('');
 
-  const showCurrentStandalone = !(d.versions && d.versions.length);
+  // Show raw segments only when there's no version or TL diff to display
+  const showCurrentStandalone = !hasVersions && !tlEdit;
   const segsHtml = showCurrentStandalone ? `<div class="export-segs">${segs}</div>` : '';
 
   let versionsHtml = '';
-  if (d.versions && d.versions.length) {
+  if (hasVersions) {
     if (tlEdit) {
-      // Labeler → TL final using index-based diff (mirrors history panel)
       versionsHtml = [...d.versions].reverse().map(v => exportVersion(v, tlEdit.segments, true)).join('');
     } else {
       versionsHtml = [...d.versions].reverse().map(v => exportVersion(v, d.segments)).join('');
     }
+  } else if (tlEdit) {
+    // Single-snapshot row with TL edit — show labeler → TL diff
+    versionsHtml = exportVersion({ segments: d.segments }, tlEdit.segments, true);
   }
 
   const saved = commentsMap.get(String(d.id));
