@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\atc-search\" -Recurse -File)",
+      "Bash(Select-Object -First 50)",
+      "Bash(git ls-tree *)",
+      "Bash(Get-ChildItem -Recurse -Depth 2)",
+      "Bash(Select-Object FullName)"
+    ]
+  }
+}

@@ -110,6 +110,32 @@
 
   .annotator-line { font-size: 11px; color: var(--ink-faint); margin-top: 6px; text-transform: uppercase; letter-spacing: 0.12em; }
   .annotator-line b { color: var(--ink-dim); font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+  /* TL Edit */
+  .tag-tl-edit { color: var(--ink-faint); border: 1px solid var(--line-2); cursor: pointer; user-select: none; font-size: 11px; padding: 2px 8px; font-family: inherit; background: transparent; text-transform: uppercase; letter-spacing: 0.14em; transition: color 0.15s, border-color 0.15s; }
+  .tag-tl-edit:hover { color: #d4a0ff; border-color: rgba(212,160,255,0.4); }
+  .tag-tl-edit.has-edit { color: #d4a0ff; border-color: rgba(212,160,255,0.4); }
+  .tl-editor { display: none; margin-top: 10px; border: 1px solid rgba(212,160,255,0.25); background: rgba(212,160,255,0.03); padding: 12px 14px; }
+  .tl-editor.open { display: block; }
+  .tl-editor-header { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: #d4a0ff; margin-bottom: 10px; opacity: 0.8; }
+  .tl-seg-row { display: grid; grid-template-columns: 56px 72px 1fr 28px; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .tl-seg-time { font-size: 12px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .tl-role-select { background: var(--bg); border: 1px solid var(--line-2); color: var(--ink); font-family: inherit; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; padding: 3px 4px; outline: none; transition: border-color 0.15s; width: 100%; }
+  .tl-role-select:focus { border-color: #d4a0ff; }
+  .tl-text-input { background: var(--bg); border: 1px solid var(--line-2); color: var(--ink); font-family: inherit; font-size: 13px; padding: 4px 8px; outline: none; width: 100%; transition: border-color 0.15s; }
+  .tl-text-input:focus { border-color: #d4a0ff; box-shadow: 0 0 0 1px rgba(212,160,255,0.25); }
+  .tl-del-btn { background: transparent; border: 1px solid var(--line-2); color: var(--ink-faint); font-size: 14px; cursor: pointer; width: 28px; height: 28px; padding: 0; transition: color 0.15s, border-color 0.15s; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .tl-del-btn:hover { color: var(--red); border-color: rgba(229,115,115,0.4); }
+  .tl-add-btn { margin-top: 6px; background: transparent; border: 1px dashed var(--line-2); color: var(--ink-faint); font-family: inherit; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; padding: 6px 12px; cursor: pointer; width: 100%; transition: all 0.15s; }
+  .tl-add-btn:hover { border-color: #d4a0ff; color: #d4a0ff; }
+  .tl-action-row { display: flex; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-2); }
+  .tl-save-btn { background: #d4a0ff; color: var(--bg); border: 1px solid #d4a0ff; font-family: inherit; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; padding: 7px 16px; cursor: pointer; font-weight: 700; transition: opacity 0.15s; }
+  .tl-save-btn:hover { opacity: 0.85; }
+  .tl-cancel-btn, .tl-revert-btn { background: transparent; border: 1px solid var(--line-2); color: var(--ink-dim); font-family: inherit; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; padding: 7px 16px; cursor: pointer; transition: all 0.15s; }
+  .tl-cancel-btn:hover { border-color: var(--amber); color: var(--amber); }
+  .tl-revert-btn { margin-left: auto; }
+  .tl-revert-btn:hover { border-color: var(--red); color: var(--red); }
+  .tl-diff-label { font-size: 11px; color: #d4a0ff; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px; opacity: 0.8; }
   .copy-id {
     font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px;
     color: var(--ink-dim); cursor: pointer; user-select: all;
@@ -429,6 +455,15 @@ function loadComments() {
 function saveComments() {
   localStorage.setItem(COMMENTS_KEY, JSON.stringify([...commentsMap]));
 }
+
+const TL_EDITS_KEY = 'atc-search-tl-edits-v1';
+let tlEditsMap = new Map();
+function loadTlEdits() {
+  try { const s = localStorage.getItem(TL_EDITS_KEY); if (s) tlEditsMap = new Map(JSON.parse(s)); } catch { tlEditsMap = new Map(); }
+}
+function saveTlEdits() {
+  localStorage.setItem(TL_EDITS_KEY, JSON.stringify([...tlEditsMap]));
+}
 function saveGeneralComment() {
   const data = {
     text: $('general-comment').value,
@@ -684,6 +719,7 @@ async function processSnapshots(files) {
   populateSnapshotSelect();
   loadComments();
   loadMajor();
+  loadTlEdits();
   $('m-docs').textContent = allDocs.length.toLocaleString();
   statusL.textContent = `ready · ${allDocs.length.toLocaleString()} recordings`;
   rerun();
@@ -912,6 +948,11 @@ function renderDoc(d) {
     ? `<button class="version-badge" data-vid="${escapeAttr(String(d.id))}">&#x1F4DC; ${d.versions.length}</button>`
     : '';
 
+  const hasTlEdit = tlEditsMap.has(String(d.id));
+  const tlBadge = showHistory
+    ? `<button class="tag tag-tl-edit${hasTlEdit ? ' has-edit' : ''}" data-tlbtn="${escapeAttr(String(d.id))}">${hasTlEdit ? 'TL ✎' : 'TL'}</button>`
+    : '';
+
   const segs = (displayDoc.segments || []).map(s => `
     <div class="seg">
       <span class="seg-time">${formatMs(s.start)}</span>
@@ -964,6 +1005,7 @@ function renderDoc(d) {
         <div class="result-key-wrap">${cbEl}<span class="result-key-inner">${keyEl}${copyKeyEl}</span></div>
        <div class="result-tags">
           ${vBadge}
+          ${tlBadge}
           ${missingBadge}
           ${reviewTag}
           <span class="tag-dur">${dur}</span>
@@ -974,7 +1016,44 @@ function renderDoc(d) {
       ${metaLine}
       ${showHistory ? renderHistory(d) : ''}
       ${commentUI}
+      ${showHistory ? renderTlEditor(d) : ''}
     </article>
+  `;
+}
+
+function renderTlEditor(d) {
+  const id = String(d.id);
+  const tlEdit = tlEditsMap.get(id);
+  const segs = tlEdit ? tlEdit.segments : (d.segments || []);
+
+  const rowsHtml = segs.map((s, i) => `
+    <div class="tl-seg-row" data-tlrow="${i}" data-tlstart="${s.start}" data-tlend="${s.end}">
+      <span class="tl-seg-time">${formatMs(s.start)}</span>
+      <select class="tl-role-select" data-tlfield="role" data-tlrow="${i}">
+        <option value="atc"${s.role === 'atc' ? ' selected' : ''}>ATC</option>
+        <option value="pilot"${s.role === 'pilot' ? ' selected' : ''}>PILOT</option>
+        <option value="unknown"${s.role === 'unknown' || !s.role ? ' selected' : ''}>?</option>
+      </select>
+      <input class="tl-text-input" type="text" data-tlfield="text" data-tlrow="${i}" value="${escapeAttr(s.text)}">
+      <button class="tl-del-btn" data-tldel="${i}" data-tldocid="${escapeAttr(id)}" title="Remove segment">&times;</button>
+    </div>
+  `).join('');
+
+  const revertBtn = tlEdit
+    ? `<button class="tl-revert-btn" data-tlrevert="${escapeAttr(id)}">Revert</button>`
+    : '';
+
+  return `
+    <div class="tl-editor" id="tled-${escapeAttr(id)}">
+      <div class="tl-editor-header">TL Segment Editor</div>
+      <div id="tled-rows-${escapeAttr(id)}">${rowsHtml}</div>
+      <button class="tl-add-btn" data-tladd="${escapeAttr(id)}">+ Add Segment</button>
+      <div class="tl-action-row">
+        <button class="tl-save-btn" data-tlsave="${escapeAttr(id)}">Save</button>
+        <button class="tl-cancel-btn" data-tlcancel="${escapeAttr(id)}">Cancel</button>
+        ${revertBtn}
+      </div>
+    </div>
   `;
 }
 
@@ -1131,10 +1210,14 @@ function renderVersionSegs(segments, currentSegments) {
 function renderHistory(d) {
   if (!d.versions || !d.versions.length) return '';
   const initial = d.versions[0];
-  const pct = d.pct || 0;
+  const tlEdit = tlEditsMap.get(String(d.id));
+  const finalSegments = tlEdit ? tlEdit.segments : d.segments;
+  const finalTranscript = finalSegments.map(s => s.text).join(' ');
+  const pct = wordDiff(initial.transcript, finalTranscript).pct;
   const pctHtml = pct > 0 ? ` · <span style="color:var(--red);opacity:0.75">${pct}% changed</span>` : '';
-  const segs = renderVersionSegs(initial.segments, d.segments);
-  return `<div class="history-panel" id="hp-${escapeAttr(String(d.id))}"><div class="version-block prior"><div class="version-block-header"><span class="version-block-date">${escapeHtml(initial.snapshotDate || '—')}</span><span class="version-block-glyph">⟲</span><span class="version-block-desc">initial state${pctHtml}</span></div>${segs}</div></div>`;
+  const diffLabel = tlEdit ? `<div class="tl-diff-label">labeler &#x2192; TL final</div>` : '';
+  const segs = renderVersionSegs(initial.segments, finalSegments);
+  return `<div class="history-panel" id="hp-${escapeAttr(String(d.id))}"><div class="version-block prior"><div class="version-block-header"><span class="version-block-date">${escapeHtml(initial.snapshotDate || '—')}</span><span class="version-block-glyph">⟲</span><span class="version-block-desc">initial state${pctHtml}</span></div>${diffLabel}${segs}</div></div>`;
 }
 
 function formatMs(ms) { return ms == null ? '' : (ms / 1000).toFixed(2) + 's'; }
@@ -1245,6 +1328,126 @@ function handlePaste(e) {
 }
 
 document.addEventListener('click', e => {
+  // TL badge — toggle editor open/closed
+  const tlBtn = e.target.closest('[data-tlbtn]');
+  if (tlBtn) {
+    const id = tlBtn.dataset.tlbtn;
+    const editor = document.getElementById(`tled-${id}`);
+    if (editor) editor.classList.toggle('open');
+    return;
+  }
+
+  // TL delete segment row
+  const tlDel = e.target.closest('[data-tldel]');
+  if (tlDel) {
+    const rowIdx = parseInt(tlDel.dataset.tldel);
+    const id = tlDel.dataset.tldocid;
+    const container = document.getElementById(`tled-rows-${id}`);
+    if (container) {
+      const rows = container.querySelectorAll('[data-tlrow]');
+      if (rows[rowIdx]) rows[rowIdx].remove();
+      container.querySelectorAll('[data-tlrow]').forEach((row, i) => {
+        row.dataset.tlrow = i;
+        row.querySelectorAll('[data-tlrow]').forEach(el => el.dataset.tlrow = i);
+        const btn = row.querySelector('[data-tldel]');
+        if (btn) btn.dataset.tldel = i;
+      });
+    }
+    return;
+  }
+
+  // TL add segment row
+  const tlAdd = e.target.closest('[data-tladd]');
+  if (tlAdd) {
+    const id = tlAdd.dataset.tladd;
+    const container = document.getElementById(`tled-rows-${id}`);
+    if (!container) return;
+    const existing = container.querySelectorAll('[data-tlrow]');
+    const newIdx = existing.length;
+    const lastRow = existing[existing.length - 1];
+    const lastStart = lastRow ? Number(lastRow.dataset.tlend || lastRow.dataset.tlstart || 0) : 0;
+    const lastEnd = lastStart;
+    const newRow = document.createElement('div');
+    newRow.className = 'tl-seg-row';
+    newRow.dataset.tlrow = newIdx;
+    newRow.dataset.tlstart = lastStart;
+    newRow.dataset.tlend = lastEnd;
+    newRow.innerHTML = `
+      <span class="tl-seg-time">${formatMs(lastStart)}</span>
+      <select class="tl-role-select" data-tlfield="role" data-tlrow="${newIdx}">
+        <option value="atc">ATC</option>
+        <option value="pilot">PILOT</option>
+        <option value="unknown" selected>?</option>
+      </select>
+      <input class="tl-text-input" type="text" data-tlfield="text" data-tlrow="${newIdx}" value="">
+      <button class="tl-del-btn" data-tldel="${newIdx}" data-tldocid="${escapeAttr(id)}" title="Remove segment">&times;</button>
+    `;
+    container.appendChild(newRow);
+    newRow.querySelector('.tl-text-input')?.focus();
+    return;
+  }
+
+  // TL save
+  const tlSave = e.target.closest('[data-tlsave]');
+  if (tlSave) {
+    const id = tlSave.dataset.tlsave;
+    const doc = allDocs.find(d => String(d.id) === id);
+    if (!doc) return;
+    const container = document.getElementById(`tled-rows-${id}`);
+    if (!container) return;
+    const rows = container.querySelectorAll('[data-tlrow]');
+    const newSegs = [];
+    rows.forEach(row => {
+      const roleEl = row.querySelector('[data-tlfield="role"]');
+      const textEl = row.querySelector('[data-tlfield="text"]');
+      newSegs.push({
+        role: roleEl ? roleEl.value : 'unknown',
+        start: Number(row.dataset.tlstart || 0),
+        end: Number(row.dataset.tlend || 0),
+        text: textEl ? textEl.value.trim() : ''
+      });
+    });
+    tlEditsMap.set(id, { segments: newSegs, editedAt: new Date().toISOString() });
+    saveTlEdits();
+    const article = document.querySelector(`article[data-docid="${CSS.escape(id)}"]`);
+    if (article) {
+      const newHtml = renderDoc(doc);
+      const tmp = document.createElement('div');
+      tmp.innerHTML = newHtml;
+      article.replaceWith(tmp.firstElementChild);
+    }
+    return;
+  }
+
+  // TL cancel — close editor without saving
+  const tlCancel = e.target.closest('[data-tlcancel]');
+  if (tlCancel) {
+    const id = tlCancel.dataset.tlcancel;
+    const editor = document.getElementById(`tled-${id}`);
+    if (editor) editor.classList.remove('open');
+    return;
+  }
+
+  // TL revert — remove TL edits and revert to reviewer version
+  const tlRevert = e.target.closest('[data-tlrevert]');
+  if (tlRevert) {
+    const id = tlRevert.dataset.tlrevert;
+    if (!confirm('Remove TL edits and revert to reviewer version?')) return;
+    tlEditsMap.delete(id);
+    saveTlEdits();
+    const doc = allDocs.find(d => String(d.id) === id);
+    if (doc) {
+      const article = document.querySelector(`article[data-docid="${CSS.escape(id)}"]`);
+      if (article) {
+        const newHtml = renderDoc(doc);
+        const tmp = document.createElement('div');
+        tmp.innerHTML = newHtml;
+        article.replaceWith(tmp.firstElementChild);
+      }
+    }
+    return;
+  }
+
   // Major button
   const majorBtn = e.target.closest('.major-btn');
   if (majorBtn) {
@@ -1395,7 +1598,11 @@ function exportPdf() {
 
 function buildExportHtml(docs, title) {
   const today = new Date().toISOString().slice(0, 10);
-  const pcts = docs.filter(d => d.versions && d.versions.length).map(d => wordDiff(d.versions[0].transcript, d.transcript).pct);
+  const pcts = docs.filter(d => d.versions && d.versions.length).map(d => {
+    const tlEdit = tlEditsMap.get(String(d.id));
+    const finalTranscript = tlEdit ? tlEdit.segments.map(s => s.text).join(' ') : d.transcript;
+    return wordDiff(d.versions[0].transcript, finalTranscript).pct;
+  });
   const avgPct = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
   const majorCount = docs.filter(d => majorSet.has(String(d.id))).length;
   const statsHtml = (avgPct !== null || majorCount > 0) ? `<div class="export-stats">${avgPct !== null ? `<span>avg. ${avgPct}% changed</span>` : ''}${majorCount > 0 ? `<span class="export-stats-major">${majorCount} major</span>` : ''}</div>` : '';
@@ -1433,14 +1640,19 @@ function exportRow(d) {
   const labeler = d.annotator ? `<span class="export-tag">labeler: ${escapeHtml(d.annotator)}</span>` : '';
   const reviewer = d.reviewedBy ? `<span class="export-tag">reviewer: ${escapeHtml(d.reviewedBy)}</span>` : '';
 
+  const tlEdit = tlEditsMap.get(String(d.id));
+  const finalSegments = tlEdit ? tlEdit.segments : d.segments;
+  const finalTranscript = finalSegments.map(s => s.text).join(' ');
+
   let pctTag = '';
   if (d.versions && d.versions.length) {
-    const { pct } = wordDiff(d.versions[0].transcript, d.transcript);
+    const { pct } = wordDiff(d.versions[0].transcript, finalTranscript);
     if (pct > 0) pctTag = `<span>${pct}% changed</span>`;
   }
   const majorTag = majorSet.has(String(d.id)) ? `<span class="export-tag major">&#9873; major</span>` : '';
+  const tlTag = tlEdit ? `<span class="export-tag" style="color:#7a3fb0;font-weight:600;">TL edited</span>` : '';
 
-  const segs = (d.segments || []).map(s => `
+  const segs = (finalSegments || []).map(s => `
     <div class="export-seg">
       <span class="export-seg-time">${formatMs(s.start)}</span>
       <span class="export-seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span>
@@ -1453,7 +1665,7 @@ function exportRow(d) {
 
   let versionsHtml = '';
   if (d.versions && d.versions.length) {
-    versionsHtml = [...d.versions].reverse().map(v => exportVersion(v, d)).join('');
+    versionsHtml = [...d.versions].reverse().map(v => exportVersion(v, finalSegments)).join('');
   }
 
   const saved = commentsMap.get(String(d.id));
@@ -1474,15 +1686,15 @@ function exportRow(d) {
 
   return `<div class="export-row">
     ${keyEl}
-    <div class="export-tags">${majorTag}${review}${labeler}${reviewer}${facets}<span>${dur}</span>${pctTag}</div>
+    <div class="export-tags">${majorTag}${tlTag}${review}${labeler}${reviewer}${facets}<span>${dur}</span>${pctTag}</div>
     ${segsHtml}
     ${versionsHtml}
     ${commentHtml}
   </div>`;
 }
 
-function exportVersion(v, d) {
-  const segs = renderVersionSegs(v.segments, d.segments);
+function exportVersion(v, finalSegments) {
+  const segs = renderVersionSegs(v.segments, finalSegments);
 
   const exportSegs = segs
     .replace(/class="seg-time"/g, 'class="export-seg-time"')
