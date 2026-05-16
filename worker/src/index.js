@@ -67,7 +67,10 @@ async function getGoogleAccessToken(email, privateKeyPem) {
   const payloadB64 = toB64Url(JSON.stringify(payload));
   const signingInput = `${headerB64}.${payloadB64}`;
 
-  const pem = privateKeyPem.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\r?\n/g, '');
+  const pem = privateKeyPem
+    .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----/g, '')
+    .replace(/\\n/g, '')
+    .replace(/\s/g, '');
   const keyDer = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
 
   const key = await crypto.subtle.importKey(
