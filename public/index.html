@@ -294,6 +294,25 @@
   .pdf-modal-close:hover { color: var(--amber); border-color: var(--amber); }
   .pdf-modal iframe { flex: 1; border: none; background: #fff; }
 
+  /* Share modal */
+  .share-modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.85); align-items: center; justify-content: center;
+  }
+  .share-modal-overlay.open { display: flex; }
+  .share-modal {
+    width: min(92vw, 500px); background: var(--panel); border: 1px solid var(--line-2);
+    display: flex; flex-direction: column;
+  }
+  .share-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid var(--line);
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-dim);
+  }
+  .share-modal-body { padding: 20px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .share-url-row { display: flex; gap: 8px; }
+  .share-url-row .filter-input { flex: 1; font-size: 12px; }
+
   @media print {
     .upload-view, .selection-bar, header, .status, .pagination, footer, .comment-wrap, .version-badge { display: none !important; }
     body { background: white; color: black; background-image: none; }
@@ -340,6 +359,22 @@
 </head>
 <body>
 
+
+<div class="share-modal-overlay" id="share-modal-overlay">
+  <div class="share-modal">
+    <div class="share-modal-header">
+      <span>Session shared</span>
+      <button class="pdf-modal-close" id="share-modal-close">Close</button>
+    </div>
+    <div class="share-modal-body">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:var(--ink-faint);">Share link — opens with current data, annotations &amp; filters</div>
+      <div class="share-url-row">
+        <input type="text" id="share-url-input" class="filter-input" readonly>
+        <button class="sel-btn primary" id="share-url-copy" style="white-space:nowrap;">Copy</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="pdf-modal-overlay" id="pdf-modal-overlay">
   <div class="pdf-modal">
@@ -390,6 +425,7 @@
         <option value="key">Sort: Key</option>
       </select>
       <a class="meta-link" id="change-snapshots-btn" style="cursor:pointer;">Upload data</a>
+      <a class="meta-link" id="share-btn" style="cursor:pointer;">Share</a>
       <a class="meta-link" onclick="document.getElementById('pdf-modal-overlay').classList.add('open')" style="cursor:pointer;">Instructions</a>
     </div>
   </header>
@@ -1020,8 +1056,9 @@ uploadForm.addEventListener('submit', async (e) => {
   handleFiles(fileInputs.files);
 });
 
-// On load, check IndexedDB for cached files and show resume panel.
+// On load, check for shared session first, then fall back to cached files.
 (async () => {
+  if (await maybeLoadSharedSession()) return;
   try {
     const files = await loadFilesFromDb();
     if (!files.length) return;
@@ -1195,6 +1232,7 @@ function rerun() {
   }
 
   renderPage();
+  syncFilterUrl();
 }
 
 function renderPage() {
@@ -2111,6 +2149,250 @@ document.getElementById('pdf-modal-close').addEventListener('click', () => {
 });
 document.getElementById('pdf-modal-overlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+});
+
+// ====================== GitHub Share ======================
+
+const GH_OWNER = 'ghoshaan';
+const GH_REPO = 'lazy-detective';
+const GH_BRANCH = 'main';
+const GH_TOKEN_KEY = 'lazy-detective-gh-token';
+
+function getGhToken() { return localStorage.getItem(GH_TOKEN_KEY) || null; }
+function setGhToken(t) { localStorage.setItem(GH_TOKEN_KEY, t.trim()); }
+function clearGhToken() { localStorage.removeItem(GH_TOKEN_KEY); }
+
+function bufferToBase64(buf) {
+  const bytes = new Uint8Array(buf);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function textToBase64(str) { return bufferToBase64(new TextEncoder().encode(str)); }
+function base64ToBuffer(b64) {
+  const bin = atob(b64.replace(/\n/g, ''));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function ghApi(path, method = 'GET', body = null) {
+  const token = getGhToken();
+  const headers = { 'Accept': 'application/vnd.github.v3+json' };
+  if (token) headers['Authorization'] = `token ${token}`;
+  if (body) headers['Content-Type'] = 'application/json';
+  const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}${path}`, {
+    method, headers, body: body ? JSON.stringify(body) : undefined
+  });
+  if (!res.ok) throw new Error(`GitHub ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+async function ghFetchFile(sessionId, name) {
+  const token = getGhToken();
+  const headers = { 'Accept': 'application/vnd.github.v3+json' };
+  if (token) headers['Authorization'] = `token ${token}`;
+  const res = await fetch(
+    `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/snapshots/${sessionId}/${encodeURIComponent(name)}`,
+    { headers }
+  );
+  if (!res.ok) throw new Error(`Fetch ${name} failed (${res.status})`);
+  const data = await res.json();
+  if (data.content) return base64ToBuffer(data.content);
+  return fetch(data.download_url).then(r => r.arrayBuffer());
+}
+
+function genSessionId() {
+  const d = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  return `${d}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+async function uploadSession(sessionId, fileRecords, annotJson, metaJson) {
+  const token = getGhToken();
+  if (!token) throw new Error('No GitHub token — enter one when sharing');
+
+  // Create all blobs in parallel
+  const blobEntries = await Promise.all([
+    ...fileRecords.map(async ({ name, buffer }) => {
+      const blob = await ghApi('/git/blobs', 'POST', { content: bufferToBase64(buffer), encoding: 'base64' });
+      return { path: `snapshots/${sessionId}/${name}`, sha: blob.sha };
+    }),
+    ghApi('/git/blobs', 'POST', { content: textToBase64(annotJson), encoding: 'base64' })
+      .then(b => ({ path: `snapshots/${sessionId}/annotations.json`, sha: b.sha })),
+    ghApi('/git/blobs', 'POST', { content: textToBase64(metaJson), encoding: 'base64' })
+      .then(b => ({ path: `snapshots/${sessionId}/meta.json`, sha: b.sha })),
+  ]);
+
+  const ref = await ghApi(`/git/ref/heads/${GH_BRANCH}`);
+  const headCommit = await ghApi(`/git/commits/${ref.object.sha}`);
+  const tree = await ghApi('/git/trees', 'POST', {
+    base_tree: headCommit.tree.sha,
+    tree: blobEntries.map(({ path, sha }) => ({ path, mode: '100644', type: 'blob', sha }))
+  });
+  const commit = await ghApi('/git/commits', 'POST', {
+    message: `Share session ${sessionId}`,
+    tree: tree.sha,
+    parents: [ref.object.sha]
+  });
+  await ghApi(`/git/refs/heads/${GH_BRANCH}`, 'PATCH', { sha: commit.sha });
+}
+
+function serializeAnnotations() {
+  return JSON.stringify({
+    version: 1,
+    comments: [...commentsMap.entries()],
+    major: [...majorSet],
+    tlEdits: [...tlEditsMap.entries()],
+    generalComment: { text: $('general-comment').value, images: generalCommentImages },
+  });
+}
+
+function loadSharedAnnotations(json) {
+  try {
+    const d = JSON.parse(json);
+    commentsMap = new Map((d.comments || []).map(([id, v]) => [String(id), v]));
+    majorSet = new Set((d.major || []).map(String));
+    tlEditsMap = new Map((d.tlEdits || []).map(([id, v]) => [String(id), v]));
+    const gc = d.generalComment || {};
+    $('general-comment').value = gc.text || '';
+    generalCommentImages = gc.images || [];
+    renderGeneralCommentImages();
+  } catch (e) { console.warn('Failed to load shared annotations:', e); }
+}
+
+function buildShareUrl(sessionId) {
+  const params = new URLSearchParams();
+  if (sessionId) params.set('session', sessionId);
+  const labeler = $('filter-labeler').value.trim();
+  const reviewer = $('filter-reviewer').value.trim();
+  const status = $('filter-status').value;
+  const annotated = $('filter-annotated').value;
+  const sort = $('sort-order').value;
+  if (labeler) params.set('labeler', labeler);
+  if (reviewer) params.set('reviewer', reviewer);
+  if (status) params.set('status', status);
+  if (annotated) params.set('annotated', annotated);
+  if (sort && sort !== 'diff') params.set('sort', sort);
+  const str = params.toString();
+  return `${location.origin}${location.pathname}${str ? '?' + str : ''}`;
+}
+
+function syncFilterUrl() {
+  const session = new URLSearchParams(location.search).get('session');
+  history.replaceState(null, '', buildShareUrl(session));
+}
+
+function restoreFiltersFromUrl(params) {
+  $('filter-labeler').value = params.get('labeler') || '';
+  $('filter-reviewer').value = params.get('reviewer') || '';
+  $('filter-status').value = params.get('status') || '';
+  $('filter-annotated').value = params.get('annotated') || '';
+  $('sort-order').value = params.get('sort') || 'diff';
+}
+
+async function maybeLoadSharedSession() {
+  const params = new URLSearchParams(location.search);
+  const sessionId = params.get('session');
+  if (!sessionId) return false;
+
+  uploadStatus.textContent = 'Loading shared session…';
+
+  try {
+    const metaBuf = await ghFetchFile(sessionId, 'meta.json');
+    const meta = JSON.parse(new TextDecoder().decode(metaBuf));
+
+    const files = await Promise.all(meta.files.map(async name => {
+      const buf = await ghFetchFile(sessionId, name);
+      return new File([buf], name);
+    }));
+
+    let annotText = null;
+    try {
+      const buf = await ghFetchFile(sessionId, 'annotations.json');
+      annotText = new TextDecoder().decode(buf);
+    } catch {}
+
+    await saveFilesToDb(files).catch(() => {});
+    await processSnapshots(files);
+
+    if (annotText) {
+      loadSharedAnnotations(annotText);
+      await saveCommentsToDb();
+      saveMajor();
+      saveTlEdits();
+      saveGeneralComment();
+    }
+
+    restoreFiltersFromUrl(params);
+    rerun();
+    return true;
+  } catch (e) {
+    console.error('Shared session load failed:', e);
+    uploadStatus.textContent = `Could not load shared session: ${e.message}`;
+    return false;
+  }
+}
+
+function showShareModal(url) {
+  $('share-url-input').value = url;
+  $('share-modal-overlay').classList.add('open');
+  $('share-url-input').select();
+}
+
+$('share-modal-close').addEventListener('click', () => $('share-modal-overlay').classList.remove('open'));
+$('share-modal-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+});
+$('share-url-copy').addEventListener('click', () => {
+  navigator.clipboard?.writeText($('share-url-input').value).catch(() => {});
+  $('share-url-copy').textContent = 'Copied!';
+  setTimeout(() => { $('share-url-copy').textContent = 'Copy'; }, 1500);
+});
+
+$('share-btn').addEventListener('click', async () => {
+  let token = getGhToken();
+  if (!token) {
+    token = prompt('Enter your GitHub personal access token (repo write access).\nStored locally, never sent anywhere except GitHub.');
+    if (!token?.trim()) return;
+    setGhToken(token);
+    token = token.trim();
+  }
+
+  const btn = $('share-btn');
+  btn.textContent = 'Sharing…';
+  btn.style.pointerEvents = 'none';
+
+  try {
+    const files = await loadFilesFromDb();
+    if (!files.length) { alert('No data loaded to share.'); return; }
+
+    const sessionId = genSessionId();
+    const fileRecords = await Promise.all(files.map(async f => ({
+      name: f.name.replace(/[^\w.\-]/g, '_'),
+      buffer: await f.arrayBuffer()
+    })));
+
+    const annotJson = serializeAnnotations();
+    const metaJson = JSON.stringify({
+      sessionId,
+      createdAt: new Date().toISOString(),
+      files: fileRecords.map(f => f.name),
+    });
+
+    await uploadSession(sessionId, fileRecords, annotJson, metaJson);
+    showShareModal(buildShareUrl(sessionId));
+  } catch (e) {
+    console.error(e);
+    if (e.message.includes('401') || e.message.includes('403')) {
+      clearGhToken();
+      alert('Token invalid or insufficient permissions. Please try again.');
+    } else {
+      alert('Share failed: ' + e.message);
+    }
+  } finally {
+    btn.textContent = 'Share';
+    btn.style.pointerEvents = '';
+  }
 });
 
 function loadSelection() {
