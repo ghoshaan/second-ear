@@ -2046,11 +2046,14 @@ async function generatePdfBlob(htmlString, title) {
   Array.from(parsed.body.childNodes).forEach(n => container.appendChild(document.adoptNode(n)));
   document.body.appendChild(container);
 
+  // Wait two frames so the browser computes layout before html2canvas captures.
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
   const opt = {
     margin: [0.45, 0.45, 0.45, 0.45],
     filename: `${title}.pdf`,
     html2canvas: { scale: 1.5, useCORS: true, logging: false, windowWidth: 1400 },
-    jsPDF: { unit: 'in', format: [11, 8.5] },
+    jsPDF: { unit: 'in', format: [11, 8.5], orientation: 'landscape' },
     pagebreak: { mode: ['css', 'legacy'] },
   };
 
