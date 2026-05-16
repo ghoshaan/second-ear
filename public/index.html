@@ -2112,22 +2112,20 @@ async function exportPdf() {
     return;
   }
 
-  // Trigger local download
-  const dlUrl = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = dlUrl;
-  a.download = `${exportTitle}.pdf`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(dlUrl), 60000);
-
-  // Upload to Drive in background
+  // Upload to Drive; fall back to local download on failure
   showDriveToast('Saving to Drive…');
   uploadPdfToDrive(blob, `${exportTitle}.pdf`)
     .then(result => {
       showDriveToast(`Saved to Drive — <a href="${result.url}" target="_blank">open</a>`, 8000);
     })
     .catch(err => {
-      showDriveToast(`Drive save failed: ${err.message}`, 6000);
+      showDriveToast(`Drive save failed — saving locally instead`, 6000);
+      const dlUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = dlUrl;
+      a.download = `${exportTitle}.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(dlUrl), 60000);
     });
 }
 
@@ -2174,6 +2172,10 @@ function buildExportHtml(docs, title, commonId, commonRole) {
 <title>${escapeHtml(title)}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Fraunces:opsz,wght@9..144,600&display=swap">
 <style>${styles}</style>
+<style>
+  :root { --bg: #fff; --panel: #f5f5f5; --line: #e0e0e0; --line-2: #ccc; --ink: #111; --ink-dim: #555; --ink-faint: #888; --hl-bg: #fff3cd; --hl-fg: #856404; }
+  body { background: #fff !important; color: #111 !important; }
+</style>
 </head><body class="export-body">
 <h1 class="export-h1">ATC ${commonRole === 'labeler' ? 'Labeler' : commonRole === 'reviewer' ? 'Reviewer' : 'Labeler/Reviewer'} Audit Report</h1>
 <div class="export-meta">${commonId ? escapeHtml(commonId) + ' &middot; ' : ''}${docs.length} recording${docs.length === 1 ? '' : 's'} &middot; exported ${today}</div>
