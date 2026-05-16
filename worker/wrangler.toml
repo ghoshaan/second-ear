@@ -4,6 +4,7 @@ compatibility_date = "2025-01-01"
 
 # Secrets are set via: wrangler secret put <NAME>
 # Required secrets:
-#   SA_EMAIL      — service account email (e.g. tl-helper@tl-helper-495507.iam.gserviceaccount.com)
-#   SA_PRIVATE_KEY — service account private key (full PEM, including header/footer lines)
-#   FOLDER_ID     — Google Drive folder ID from the share URL
+#   GOOGLE_CLIENT_ID     — OAuth2 Client ID
+#   GOOGLE_CLIENT_SECRET — OAuth2 Client Secret
+#   GOOGLE_REFRESH_TOKEN — OAuth2 Refresh Token
+#   FOLDER_ID            — Google Drive folder ID from the share URL

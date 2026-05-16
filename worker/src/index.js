@@ -26,7 +26,11 @@ export default {
         return jsonResponse({ error: 'No file provided' }, 400, corsHeaders);
       }
 
-      const accessToken = await getGoogleAccessToken(env.SA_EMAIL, env.SA_PRIVATE_KEY);
+      const accessToken = await refreshAccessToken(
+        env.GOOGLE_CLIENT_ID,
+        env.GOOGLE_CLIENT_SECRET,
+        env.GOOGLE_REFRESH_TOKEN
+      );
       const pdfBuffer = await file.arrayBuffer();
       const result = await uploadToDrive(accessToken, pdfBuffer, filename, env.FOLDER_ID);
 
@@ -50,61 +54,24 @@ function jsonResponse(data, status, extraHeaders = {}) {
   });
 }
 
-async function getGoogleAccessToken(email, privateKeyPem) {
-  const now = Math.floor(Date.now() / 1000);
-
-  const header = { alg: 'RS256', typ: 'JWT' };
-  const payload = {
-    iss: email,
-    scope: SCOPE,
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
-  };
-
-  const toB64Url = s => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const headerB64 = toB64Url(JSON.stringify(header));
-  const payloadB64 = toB64Url(JSON.stringify(payload));
-  const signingInput = `${headerB64}.${payloadB64}`;
-
-  const pem = privateKeyPem
-    .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----/g, '')
-    .replace(/\\n/g, '')
-    .replace(/\s/g, '');
-  const keyDer = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
-
-  const key = await crypto.subtle.importKey(
-    'pkcs8',
-    keyDer.buffer,
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-
-  const sig = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    key,
-    new TextEncoder().encode(signingInput)
-  );
-
-  const sigB64 = toB64Url(String.fromCharCode(...new Uint8Array(sig)));
-  const jwt = `${signingInput}.${sigB64}`;
-
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+async function refreshAccessToken(clientId, clientSecret, refreshToken) {
+  const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: jwt,
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
     }),
   });
 
-  if (!tokenRes.ok) {
-    throw new Error(`Google token request failed: ${await tokenRes.text()}`);
+  if (!res.ok) {
+    throw new Error(`Failed to refresh access token: ${await res.text()}`);
   }
 
-  const { access_token } = await tokenRes.json();
-  return access_token;
+  const data = await res.json();
+  return data.access_token;
 }
 
 async function uploadToDrive(accessToken, pdfBuffer, filename, folderId) {
