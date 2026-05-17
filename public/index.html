@@ -369,7 +369,12 @@
   .drive-toast a:hover { text-decoration: underline; }
 </style>
 </head>
-<body>
+<body class="export-body">
+
+<div id="drop-overlay" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(11,14,12,0.8); border:4px dashed var(--amber); align-items:center; justify-content:center; pointer-events:none; flex-direction:column; gap:16px;">
+  <div style="font-family:'Fraunces', serif; font-size:32px; color:var(--amber); font-style:italic;">Drop files to upload</div>
+  <div style="color:var(--ink-dim); text-transform:uppercase; letter-spacing:0.14em; font-size:13px;">NDJSON data snapshots</div>
+</div>
 
 
 <div class="share-modal-overlay" id="share-modal-overlay">
@@ -934,14 +939,16 @@ async function processSnapshots(files) {
   allDocs = processedRows;
   allDocs.sort((a, b) => String(a.key || '').localeCompare(String(b.key || '')));
 
-  showApp();
+  const isAppVisible = app.classList.contains('unlocked');
+  if (!isAppVisible) showApp();
+
   await loadComments();
   loadMajor();
   loadTlEdits();
   populateFilterSuggestions();
   $('m-docs').textContent = allDocs.length.toLocaleString();
-  statusL.textContent = `ready · ${allDocs.length.toLocaleString()} recordings`;
-  rerun();
+  statusL.textContent = `${isAppVisible ? 'added' : 'ready'} · ${allDocs.length.toLocaleString()} recordings`;
+  rerun(isAppVisible);
   return fileList.map((file, origIdx) => ({ file, name: computedNames[origIdx] }));
 }
 
@@ -1112,16 +1119,40 @@ uploadForm.addEventListener('submit', async (e) => {
 
 
 const uploadCard = document.querySelector('.upload-card');
+const dropOverlay = $('drop-overlay');
+let dragCounter = 0;
+
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(name => {
-  uploadView.addEventListener(name, e => { e.preventDefault(); e.stopPropagation(); }, false);
+  window.addEventListener(name, e => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, false);
 });
-['dragenter', 'dragover'].forEach(name => {
-  uploadView.addEventListener(name, () => uploadCard.classList.add('drag-over'), false);
-});
-['dragleave', 'drop'].forEach(name => {
-  uploadView.addEventListener(name, () => uploadCard.classList.remove('drag-over'), false);
-});
-uploadView.addEventListener('drop', e => {
+
+window.addEventListener('dragenter', e => {
+  dragCounter++;
+  if (dragCounter === 1) {
+    dropOverlay.style.display = 'flex';
+    if (uploadView.style.display !== 'none') uploadCard.classList.add('drag-over');
+  }
+}, false);
+
+window.addEventListener('dragleave', e => {
+  dragCounter--;
+  if (dragCounter === 0) {
+    dropOverlay.style.display = 'none';
+    uploadCard.classList.remove('drag-over');
+  }
+}, false);
+
+window.addEventListener('dragover', e => {
+  e.dataTransfer.dropEffect = 'copy';
+}, false);
+
+window.addEventListener('drop', e => {
+  dragCounter = 0;
+  dropOverlay.style.display = 'none';
+  uploadCard.classList.remove('drag-over');
   handleFiles(e.dataTransfer.files);
 }, false);
 
@@ -1218,8 +1249,8 @@ function hasAnnotation(d) {
   return !!(text.trim() || images.length);
 }
 
-function rerun() {
-  currentPage = 1;
+function rerun(keepPage = false) {
+  if (!keepPage) currentPage = 1;
 
   const labelerFilter = ($('filter-labeler').value || '').trim().toLowerCase();
   const reviewerFilter = ($('filter-reviewer').value || '').trim().toLowerCase();
@@ -2213,9 +2244,7 @@ function buildExportHtml(docs, title, commonId, commonRole) {
   .diff-aligned { display: inline-flex; flex-wrap: wrap; column-gap: 0.35em; row-gap: 12px; align-items: center; }
 </style>
 </head><body class="export-body">
-<h1 class="export-h1">ATC ${commonRole === 'labeler' ? 'Labeler' : commonRole === 'reviewer' ? 'Reviewer' : 'Labeler/Reviewer'} Audit Report</h1>
-<div class="export-meta">${docs.length} recording${docs.length === 1 ? '' : 's'} &middot; exported ${today}</div>
-${statsHtml}
+
 ${genCommentHtml}
 ${docsHtml}
 </body></html>`;
