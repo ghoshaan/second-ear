@@ -1556,8 +1556,8 @@ function wordDiff(oldText, newText) {
   const dp = lcsWords(on, nn);
   if (!dp) return { pct: 100 };
   const lcsLen = dp[on.length][nn.length];
-  const changed = on.length - lcsLen;
-  return { pct: Math.round(changed / on.length * 100) };
+  const maxLen = Math.max(on.length, nn.length);
+  return { pct: Math.round((1 - lcsLen / maxLen) * 100) };
 }
 
 function matchSegments(oldSegs, newSegs) {
