@@ -33,12 +33,13 @@
   .list { padding: 12px 28px 48px; }
   .entry { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; padding: 13px 0; border-bottom: 1px solid var(--line); }
   .entry:last-child { border-bottom: none; }
-  .entry-left { display: contents; }
   .entry-id { font-weight: 700; color: var(--ink); }
   .entry-date { color: var(--ink-dim); font-size: 11px; }
   .entry-by { color: var(--ink-dim); font-size: 11px; font-style: italic; }
-  .entry-link { color: var(--amber); text-decoration: none; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; white-space: nowrap; }
+  .entry-link { color: var(--amber); text-decoration: none; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; }
   .entry-link:hover { text-decoration: underline; }
+  .entry-del { background: none; border: none; color: var(--ink-dim); cursor: pointer; font-size: 15px; padding: 0; line-height: 1; margin-left: auto; opacity: 0.4; font-family: inherit; }
+  .entry-del:hover { color: #e55; opacity: 1; }
 
   .empty { padding: 48px 28px; color: var(--ink-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; }
   .loading { padding: 48px 28px; color: var(--ink-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; }
@@ -59,9 +60,15 @@
 <div class="list" id="list"><div class="loading">Loading…</div></div>
 
 <script>
+const GH_TOKEN_KEY = 'lazy-detective-gh-token';
 const DIRECTORY_URL = 'https://raw.githubusercontent.com/ghoshaan/lazy-detective/main/public/directory.json';
+const API_URL = 'https://api.github.com/repos/ghoshaan/lazy-detective/contents/public/directory.json';
 
 let allEntries = [];
+
+function canDelete() {
+  return !!localStorage.getItem(GH_TOKEN_KEY);
+}
 
 async function load() {
   try {
@@ -88,6 +95,7 @@ function render(q) {
     (q && filtered.length !== allEntries.length ? ` of ${allEntries.length}` : '');
 
   const list = document.getElementById('list');
+  const deletable = canDelete();
 
   if (!filtered.length) {
     list.innerHTML = `<div class="empty">${q ? 'No results' : 'No audits saved yet'}</div>`;
@@ -96,14 +104,45 @@ function render(q) {
 
   list.innerHTML = filtered.map(e => `
     <div class="entry">
-      <div class="entry-left">
-        <span class="entry-id">${esc(e.id)}</span>
-        <span class="entry-date">${esc(e.date)}</span>
-        ${e.preparedBy ? `<span class="entry-by">by ${esc(e.preparedBy)}</span>` : ''}
-      </div>
+      <span class="entry-id">${esc(e.id)}</span>
+      <span class="entry-date">${esc(e.date)}</span>
+      ${e.preparedBy ? `<span class="entry-by">by ${esc(e.preparedBy)}</span>` : ''}
       <a class="entry-link" href="${esc(e.driveUrl)}" target="_blank" rel="noopener">open pdf</a>
+      ${deletable ? `<button class="entry-del" onclick="deleteEntry(${JSON.stringify(e.fileId || e.filename)})" title="Remove from directory">×</button>` : ''}
     </div>
   `).join('');
+}
+
+async function deleteEntry(key) {
+  const token = localStorage.getItem(GH_TOKEN_KEY);
+  if (!token) return;
+
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    Accept: 'application/vnd.github.v3+json',
+    'User-Agent': 'lazy-detective-directory',
+  };
+
+  const getRes = await fetch(API_URL, { headers });
+  if (!getRes.ok) { alert('Failed to fetch directory'); return; }
+  const data = await getRes.json();
+  const entries = JSON.parse(atob(data.content.replace(/\n/g, '')));
+
+  const updated = entries.filter(e => (e.fileId || e.filename) !== key);
+  if (updated.length === entries.length) return;
+
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(updated, null, 2))));
+
+  const putRes = await fetch(API_URL, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: `remove audit entry`, content, sha: data.sha }),
+  });
+
+  if (!putRes.ok) { alert('Failed to update directory'); return; }
+
+  allEntries = allEntries.filter(e => (e.fileId || e.filename) !== key);
+  render(document.getElementById('search').value);
 }
 
 function esc(s) {
