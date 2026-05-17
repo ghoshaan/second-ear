@@ -449,6 +449,10 @@
 
   <div id="view-main">
     <div class="filter-bar">
+      <div class="filter-group" style="flex: 1; min-width: 200px;">
+        <label class="filter-label" for="filter-search">Search</label>
+        <input class="filter-input" id="filter-search" placeholder="Search context, key, or ID…" autocomplete="off">
+      </div>
       <div class="filter-group">
         <label class="filter-label" for="filter-labeler">Labeler</label>
         <input class="filter-input" id="filter-labeler" placeholder="Filter by labeler…" autocomplete="off">
@@ -1182,11 +1186,13 @@ window.addEventListener('popstate', e => {
 });
 
 $('sort-order').addEventListener('change', rerun);
+$('filter-search').addEventListener('input', rerun);
 $('filter-labeler').addEventListener('input', rerun);
 $('filter-reviewer').addEventListener('input', rerun);
 $('filter-status').addEventListener('change', rerun);
 $('filter-annotated').addEventListener('change', rerun);
 $('filter-clear-btn').addEventListener('click', () => {
+  $('filter-search').value = '';
   $('filter-labeler').value = '';
   $('filter-reviewer').value = '';
   $('filter-status').value = '';
@@ -1259,12 +1265,19 @@ function hasAnnotation(d) {
 function rerun(keepPage = false) {
   if (!keepPage) currentPage = 1;
 
+  const searchFilter = ($('filter-search').value || '').trim().toLowerCase();
   const labelerFilter = ($('filter-labeler').value || '').trim().toLowerCase();
   const reviewerFilter = ($('filter-reviewer').value || '').trim().toLowerCase();
   const statusFilter = ($('filter-status')?.value || '').trim();
   const annotatedFilter = ($('filter-annotated')?.value || '').trim();
 
   filteredDocs = allDocs.filter(d => {
+    if (searchFilter) {
+      const context = (d.transcript || '').toLowerCase();
+      const key = (d.key || '').toLowerCase();
+      const id = String(d.id || '').toLowerCase();
+      if (!context.includes(searchFilter) && !key.includes(searchFilter) && !id.includes(searchFilter)) return false;
+    }
     if (labelerFilter && !(d.annotator || '').toLowerCase().includes(labelerFilter)) return false;
     if (reviewerFilter && !(d.reviewedBy || '').toLowerCase().includes(reviewerFilter)) return false;
     if (statusFilter === 'reviewed' && !d.reviewed) return false;
@@ -2479,11 +2492,13 @@ function loadSharedAnnotations(json) {
 function buildShareUrl(sessionId) {
   const params = new URLSearchParams();
   if (sessionId) params.set('session', sessionId);
+  const q = $('filter-search').value.trim();
   const labeler = $('filter-labeler').value.trim();
   const reviewer = $('filter-reviewer').value.trim();
   const status = $('filter-status').value;
   const annotated = $('filter-annotated').value;
   const sort = $('sort-order').value;
+  if (q) params.set('q', q);
   if (labeler) params.set('labeler', labeler);
   if (reviewer) params.set('reviewer', reviewer);
   if (status) params.set('status', status);
@@ -2499,6 +2514,7 @@ function syncFilterUrl() {
 }
 
 function restoreFiltersFromUrl(params) {
+  $('filter-search').value = params.get('q') || '';
   $('filter-labeler').value = params.get('labeler') || '';
   $('filter-reviewer').value = params.get('reviewer') || '';
   $('filter-status').value = params.get('status') || '';
