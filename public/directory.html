@@ -110,13 +110,18 @@ function render(q) {
 
 // Event delegation for delete buttons
 document.getElementById('list').addEventListener('click', e => {
-  const btn = e.target.closest('.entry-del');
-  if (btn) {
-    e.preventDefault();
-    e.stopPropagation();
-    const key = btn.dataset.key;
-    console.log('Delete button clicked for key:', key);
-    deleteEntry(key);
+  try {
+    const btn = e.target.closest('.entry-del');
+    if (btn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const key = btn.dataset.key;
+      console.log('Delete button clicked for key:', key);
+      deleteEntry(key);
+    }
+  } catch (err) {
+    console.error('Error in click event listener:', err);
+    alert('Click error: ' + err.message);
   }
 });
 
