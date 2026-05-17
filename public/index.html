@@ -438,8 +438,11 @@
       <button class="upload-btn" id="upload-go" type="submit">Load Snapshots</button>
       <div class="upload-status" id="upload-status"></div>
     </form>
-    <div style="text-align:center; margin-top: 18px;">
-      <a href="directory.html" target="_blank" style="color: var(--amber); font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; text-decoration: none;">Audit Directory</a>
+    <div style="margin-top: 24px; border-top: 1px solid var(--line-2); padding-top: 18px;">
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.12em; color:var(--ink-faint); margin-bottom:8px;">Previous Audits</div>
+      <input type="text" id="dir-id-input" placeholder="Enter masked ID…" autocomplete="off"
+        style="background:var(--bg); border:1px solid var(--line-2); color:var(--ink); font-family:inherit; font-size:14px; padding:10px; outline:none; width:100%; transition:border-color 0.15s;">
+      <div id="dir-results"></div>
     </div>
   </div>
 </div>
@@ -457,8 +460,7 @@
       <a class="meta-link" id="name-btn" style="cursor:pointer;"></a>
       <a class="meta-link" id="change-snapshots-btn" style="cursor:pointer;">Upload data</a>
       <a class="meta-link" id="share-btn" style="cursor:pointer;">Share</a>
-      <a class="meta-link" href="directory.html" target="_blank" style="color: var(--amber);">Directory</a>
-      <a class="meta-link" onclick="document.getElementById('pdf-modal-overlay').classList.add('open')" style="cursor:pointer;">Instructions</a>
+<a class="meta-link" onclick="document.getElementById('pdf-modal-overlay').classList.add('open')" style="cursor:pointer;">Instructions</a>
     </div>
   </header>
 
@@ -2791,6 +2793,55 @@ function updateSelectionBar() {
   const bar = $('selection-bar');
   $('sel-count').textContent = selection.size;
   bar.classList.toggle('visible', selection.size > 0);
+}
+
+// Audit directory inline lookup — searches Google Drive via worker
+{
+  let dirTimer = null;
+
+  function escDir(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  async function renderDirResults(q) {
+    const el = document.getElementById('dir-results');
+    if (!q) { el.innerHTML = ''; return; }
+    try {
+      const res = await fetch(`${DRIVE_WORKER_URL}/drive/search?q=${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error(`Search failed (${res.status})`);
+      const { files, error } = await res.json();
+      if (error) throw new Error(error);
+      if (!files.length) {
+        el.innerHTML = '<div style="font-size:12px;color:var(--ink-faint);padding:8px 0;text-transform:uppercase;letter-spacing:0.1em;">No audits found</div>';
+        return;
+      }
+      el.innerHTML = files.map(e => `
+        <div style="padding:10px 0;border-bottom:1px solid var(--line-2);display:flex;flex-direction:column;gap:3px;">
+          <div style="display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;">
+            <span style="font-weight:700;color:var(--ink);font-size:14px;">${escDir(e.id)}</span>
+            <span style="color:var(--ink-faint);font-size:12px;">${escDir(e.date)}</span>
+          </div>
+          <a href="${escDir(e.driveUrl)}" target="_blank" rel="noopener"
+            style="color:var(--amber);text-decoration:none;font-size:11px;text-transform:uppercase;letter-spacing:0.12em;">open pdf</a>
+        </div>
+      `).join('');
+    } catch (err) {
+      document.getElementById('dir-results').innerHTML =
+        `<div style="font-size:12px;color:var(--red);padding:8px 0;">${escDir(err.message)}</div>`;
+    }
+  }
+
+  const dirInput = document.getElementById('dir-id-input');
+  dirInput.addEventListener('focus', () => { dirInput.style.borderColor = 'var(--amber)'; });
+  dirInput.addEventListener('blur',  () => { dirInput.style.borderColor = 'var(--line-2)'; });
+  dirInput.addEventListener('input', function() {
+    const q = this.value.trim();
+    clearTimeout(dirTimer);
+    const el = document.getElementById('dir-results');
+    if (!q) { el.innerHTML = ''; return; }
+    el.innerHTML = '<div style="font-size:12px;color:var(--ink-faint);padding:8px 0;">Searching…</div>';
+    dirTimer = setTimeout(() => renderDirResults(q), 400);
+  });
 }
 </script>
 </body>

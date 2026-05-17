@@ -1,6 +1,8 @@
 name = "atc-pdf-drive"
 main = "src/index.js"
 compatibility_date = "2025-01-01"
+account_id = "63fe2384143c74845c84e0e5b892b7ea"
+workers_dev = true
 
 # Secrets are set via: wrangler secret put <NAME>
 # Required secrets:

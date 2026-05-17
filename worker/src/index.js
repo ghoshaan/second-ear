@@ -21,6 +21,10 @@ export default {
       return handleGithubProxy(request, env, url, corsHeaders);
     }
 
+    if (url.pathname === '/drive/search') {
+      return handleDriveSearch(request, env, url, corsHeaders);
+    }
+
     if (request.method !== 'POST') {
       return new Response('Method Not Allowed', { status: 405, headers: corsHeaders });
     }
@@ -196,6 +200,55 @@ async function handleGithubProxy(request, env, url, corsHeaders) {
     status: res.status,
     headers: { 'Content-Type': 'application/json', ...corsHeaders },
   });
+}
+
+async function handleDriveSearch(request, env, url, corsHeaders) {
+  const q = (url.searchParams.get('q') || '').trim();
+  if (!q) return jsonResponse({ files: [] }, 200, corsHeaders);
+
+  try {
+    const accessToken = await refreshAccessToken(
+      env.GOOGLE_CLIENT_ID,
+      env.GOOGLE_CLIENT_SECRET,
+      env.GOOGLE_REFRESH_TOKEN
+    );
+
+    const safeQ = q.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const driveQuery = env.FOLDER_ID
+      ? `'${env.FOLDER_ID}' in parents and name contains '${safeQ}' and trashed = false`
+      : `name contains '${safeQ}' and trashed = false`;
+
+    const listUrl = new URL('https://www.googleapis.com/drive/v3/files');
+    listUrl.searchParams.set('q', driveQuery);
+    listUrl.searchParams.set('fields', 'files(id,name,createdTime,webViewLink)');
+    listUrl.searchParams.set('orderBy', 'createdTime desc');
+    listUrl.searchParams.set('pageSize', '50');
+
+    const res = await fetch(listUrl.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Drive list failed (${res.status}): ${await res.text()}`);
+    }
+
+    const data = await res.json();
+    const files = (data.files || []).map(f => {
+      const nameMatch = f.name.match(/^(.*?)\s+(\d{4}-\d{2}-\d{2})\.pdf$/i);
+      return {
+        fileId: f.id,
+        name: f.name,
+        id: nameMatch ? nameMatch[1] : f.name.replace(/\.pdf$/i, ''),
+        date: nameMatch ? nameMatch[2] : (f.createdTime || '').slice(0, 10),
+        driveUrl: f.webViewLink || `https://drive.google.com/file/d/${f.id}/view`,
+      };
+    });
+
+    return jsonResponse({ files }, 200, corsHeaders);
+  } catch (err) {
+    console.error(err.stack || err.message);
+    return jsonResponse({ error: err.message }, 500, corsHeaders);
+  }
 }
 
 function toBase64(str) {
