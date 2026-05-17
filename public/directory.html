@@ -102,10 +102,22 @@ function render(q) {
       <span class="entry-date">${esc(e.date)}</span>
       ${e.preparedBy ? `<span class="entry-by">by ${esc(e.preparedBy)}</span>` : ''}
       <a class="entry-link" href="${esc(e.driveUrl)}" target="_blank" rel="noopener">open pdf</a>
-      <button class="entry-del" onclick='deleteEntry(${JSON.stringify(e.fileId || e.filename)})' title="Remove from directory">×</button>
+      <button class="entry-del" data-key="${esc(e.fileId || e.filename)}" title="Remove from directory">×</button>
     </div>
   `).join('');
 }
+
+// Event delegation for delete buttons
+document.getElementById('list').addEventListener('click', e => {
+  const btn = e.target.closest('.entry-del');
+  if (btn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const key = btn.dataset.key;
+    console.log('Delete button clicked for key:', key);
+    deleteEntry(key);
+  }
+});
 
 async function deleteEntry(key) {
   console.log('deleteEntry requested for key:', key);
