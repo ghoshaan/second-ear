@@ -7,13 +7,18 @@ export default {
   async fetch(request, env, ctx) {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
       'Access-Control-Max-Age': '86400',
     };
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    const url = new URL(request.url);
+    if (url.pathname.startsWith('/github')) {
+      return handleGithubProxy(request, env, url, corsHeaders);
     }
 
     if (request.method !== 'POST') {
@@ -168,6 +173,29 @@ async function updateDirectory(env, entry) {
   if (!putRes.ok) {
     throw new Error(`GitHub PUT failed (${putRes.status}): ${await putRes.text()}`);
   }
+}
+
+async function handleGithubProxy(request, env, url, corsHeaders) {
+  const ghPath = url.pathname.replace(/^\/github/, '') + url.search;
+  const ghUrl = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}${ghPath}`;
+
+  const headers = {
+    Authorization: `Bearer ${env.GH_TOKEN}`,
+    Accept: 'application/vnd.github.v3+json',
+    'User-Agent': 'atc-pdf-worker',
+    'Content-Type': 'application/json',
+  };
+
+  const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
+  const body = hasBody ? await request.text() : undefined;
+
+  const res = await fetch(ghUrl, { method: request.method, headers, body });
+  const text = await res.text();
+
+  return new Response(text, {
+    status: res.status,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders },
+  });
 }
 
 function toBase64(str) {

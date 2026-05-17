@@ -2471,12 +2471,10 @@ function base64ToBuffer(b64) {
 }
 
 async function ghApi(path, method = 'GET', body = null) {
-  const token = getGhToken();
-  const headers = { 'Accept': 'application/vnd.github.v3+json' };
-  if (token) headers['Authorization'] = `token ${token}`;
-  if (body) headers['Content-Type'] = 'application/json';
-  const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}${path}`, {
-    method, headers, body: body ? JSON.stringify(body) : undefined
+  const res = await fetch(`${DRIVE_WORKER_URL}/github${path}`, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error(`GitHub ${res.status}: ${await res.text()}`);
   return res.json();
@@ -2502,8 +2500,6 @@ function genSessionId() {
 }
 
 async function uploadSession(sessionId, fileRecords, annotJson, metaJson) {
-  const token = getGhToken();
-  if (!token) throw new Error('No GitHub token — enter one when sharing');
 
   // Create all blobs in parallel (these are immutable and don't depend on branch state)
   const blobEntries = await Promise.all([
@@ -2663,14 +2659,6 @@ $('share-url-copy').addEventListener('click', () => {
 });
 
 $('share-btn').addEventListener('click', async () => {
-  let token = getGhToken();
-  if (!token) {
-    token = prompt('Enter your GitHub personal access token (repo write access).\nStored locally, never sent anywhere except GitHub.');
-    if (!token?.trim()) return;
-    setGhToken(token);
-    token = token.trim();
-  }
-
   const btn = $('share-btn');
   btn.textContent = 'Sharing…';
   btn.style.pointerEvents = 'none';
@@ -2696,12 +2684,7 @@ $('share-btn').addEventListener('click', async () => {
     showShareModal(buildShareUrl(sessionId));
   } catch (e) {
     console.error(e);
-    if (e.message.includes('401') || e.message.includes('403')) {
-      clearGhToken();
-      alert('Token invalid or insufficient permissions. Please try again.');
-    } else {
-      alert('Share failed: ' + e.message);
-    }
+    alert('Share failed: ' + e.message);
   } finally {
     btn.textContent = 'Share';
     btn.style.pointerEvents = '';

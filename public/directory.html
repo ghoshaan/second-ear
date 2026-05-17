@@ -123,6 +123,8 @@ async function deleteEntry(key) {
     'User-Agent': 'lazy-detective-directory',
   };
 
+  if (!confirm('Remove this entry from the directory?')) return;
+
   const getRes = await fetch(API_URL, { headers });
   if (!getRes.ok) { alert('Failed to fetch directory'); return; }
   const data = await getRes.json();
