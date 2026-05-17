@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Audit Directory · lazy detective</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --panel: #161616;
+    --line: #2a2a2a;
+    --ink: #e8e8e8;
+    --ink-dim: #888;
+    --amber: #ffb347;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: 'JetBrains Mono', monospace; font-size: 16px; min-height: 100vh; }
+
+  header { border-bottom: 1px solid var(--line); padding: 18px 28px; display: flex; align-items: baseline; gap: 16px; }
+  .site-title { font-family: 'Fraunces', serif; font-weight: 300; font-size: 24px; cursor: pointer; }
+  .site-title em { font-style: italic; color: var(--amber); font-weight: 600; }
+  .page-label { color: var(--ink-dim); font-size: 13px; text-transform: uppercase; letter-spacing: 0.14em; }
+
+  .toolbar { padding: 24px 28px 0; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .search { flex: 1; min-width: 220px; max-width: 480px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); font-family: inherit; font-size: 16px; padding: 10px 14px; outline: none; }
+  .search:focus { border-color: var(--amber); }
+  .search::placeholder { color: var(--ink-dim); }
+
+  .meta { padding: 14px 28px 0; font-size: 14px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+
+  .list { padding: 12px 28px 48px; }
+  .entry { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .entry:last-child { border-bottom: none; }
+  .entry-id { font-weight: 700; color: var(--ink); font-size: 17px; }
+  .entry-date { color: var(--ink-dim); font-size: 14px; }
+  .entry-by { color: var(--ink-dim); font-size: 14px; font-style: italic; }
+  .entry-link { color: var(--amber); text-decoration: none; font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em; }
+  .entry-link:hover { text-decoration: underline; }
+  .entry-del { background: none; border: none; color: var(--ink-dim); cursor: pointer; font-size: 22px; padding: 0 8px; line-height: 1; margin-left: auto; opacity: 0.3; font-family: inherit; transition: all 0.1s; }
+  .entry-del:hover { color: #f55; opacity: 1; transform: scale(1.1); }
+
+  .empty { padding: 48px 28px; color: var(--ink-dim); font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em; }
+  .loading { padding: 48px 28px; color: var(--ink-dim); font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em; }
+</style>
+</head>
+<body>
+
+<header>
+  <!-- v1.0.1 -->
+  <div class="site-title" onclick="location.href='.'">lazy<em>detective</em></div>
+  <div class="page-label">audit directory</div>
+</header>
+
+<div class="toolbar">
+  <input class="search" id="search" placeholder="Search by ID, date, or name…" autocomplete="off">
+</div>
+
+<div class="meta" id="meta"></div>
+<div class="list" id="list"><div class="loading">Loading…</div></div>
+
+<script>
+const DIRECTORY_URL = 'https://raw.githubusercontent.com/ghoshaan/lazy-detective/main/public/directory.json';
+const WORKER_URL = 'https://atc-pdf-drive.ghoshaan.workers.dev';
+
+let allEntries = [];
+
+async function load() {
+  try {
+    const res = await fetch(DIRECTORY_URL + '?t=' + Date.now());
+    allEntries = res.ok ? await res.json() : [];
+  } catch {
+    allEntries = [];
+  }
+  render(document.getElementById('search').value);
+}
+
+function render(q) {
+  const lq = q.toLowerCase();
+  const filtered = lq
+    ? allEntries.filter(e =>
+        (e.id || '').toLowerCase().includes(lq) ||
+        (e.date || '').includes(lq) ||
+        (e.preparedBy || '').toLowerCase().includes(lq)
+      )
+    : allEntries;
+
+  document.getElementById('meta').textContent =
+    `${filtered.length} audit${filtered.length === 1 ? '' : 's'}` +
+    (q && filtered.length !== allEntries.length ? ` of ${allEntries.length}` : '');
+
+  const list = document.getElementById('list');
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty">${q ? 'No results' : 'No audits saved yet'}</div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(e => `
+    <div class="entry">
+      <span class="entry-id">${esc(e.id)}</span>
+      <span class="entry-date">${esc(e.date)}</span>
+      ${e.preparedBy ? `<span class="entry-by">by ${esc(e.preparedBy)}</span>` : ''}
+      <a class="entry-link" href="${esc(e.driveUrl)}" target="_blank" rel="noopener">open pdf</a>
+      <button class="entry-del" data-key="${esc(e.fileId || e.filename)}" title="Remove from directory">×</button>
+    </div>
+  `).join('');
+}
+
+// Event delegation for delete buttons
+document.getElementById('list').addEventListener('click', e => {
+  try {
+    const btn = e.target.closest('.entry-del');
+    if (btn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const key = btn.dataset.key;
+      console.log('Delete button clicked for key:', key);
+      deleteEntry(key);
+    }
+  } catch (err) {
+    console.error('Error in click event listener:', err);
+    alert('Click error: ' + err.message);
+  }
+});
+
+async function deleteEntry(key) {
+  console.log('deleteEntry requested for key:', key);
+  if (!confirm('Remove this entry from the directory?')) return;
+
+  try {
+    const ghPath = '/contents/public/directory.json';
+
+    console.log('Fetching directory from GitHub...');
+    const getRes = await fetch(`${WORKER_URL}/github${ghPath}`);
+    if (!getRes.ok) {
+      const errText = await getRes.text();
+      console.error('Failed to fetch directory:', getRes.status, errText);
+      alert('Failed to fetch directory: ' + getRes.status);
+      return;
+    }
+    const data = await getRes.json();
+    const entries = JSON.parse(atob(data.content.replace(/\n/g, '')));
+    console.log('Directory fetched, current entries:', entries.length);
+
+    const updated = entries.filter(e => (e.fileId || e.filename) !== key);
+    if (updated.length === entries.length) {
+      console.warn('Entry not found in directory for key:', key);
+      return;
+    }
+
+    console.log('Updating directory with', updated.length, 'entries...');
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(updated, null, 2))));
+
+    const putRes = await fetch(`${WORKER_URL}/github${ghPath}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'remove audit entry', content, sha: data.sha }),
+    });
+
+    if (!putRes.ok) {
+      const errText = await putRes.text();
+      console.error('Failed to update directory:', putRes.status, errText);
+      alert('Failed to update directory: ' + putRes.status);
+      return;
+    }
+
+    console.log('Directory updated successfully.');
+    allEntries = allEntries.filter(e => (e.fileId || e.filename) !== key);
+    render(document.getElementById('search').value);
+  } catch (err) {
+    console.error('Unexpected error in deleteEntry:', err);
+    alert('An unexpected error occurred: ' + err.message);
+  }
+}
+
+function esc(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+document.getElementById('search').addEventListener('input', e => render(e.target.value));
+load();
+</script>
+</body>
+</html>
