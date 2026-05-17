@@ -408,9 +408,6 @@
     <img src="favicon.svg" alt="" style="position: absolute; top: 20px; left: 24px; width: 56px; height: 56px; opacity: 0.85;">
     <h1 class="upload-title" style="margin-top: 52px;">lazy<em>detective</em></h1>
     <div class="upload-sub">upload one or more data files to view</div>
-    <div style="margin-bottom: 24px;">
-      <button onclick="document.getElementById('pdf-modal-overlay').classList.add('open')" style="color: var(--amber); background: transparent; font-family: inherit; text-decoration: none; font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; border: 1px solid var(--line-2); padding: 10px; display: block; width: 100%; text-align: center; transition: all 0.15s; cursor: pointer;" onmouseover="this.style.borderColor='var(--amber)'" onmouseout="this.style.borderColor='var(--line-2)'">Instructions</button>
-    </div>
     <div id="resume-panel" style="display:none; margin-bottom: 20px; padding: 14px; border: 1px solid var(--line-2); background: rgba(255,179,71,0.04);">
       <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.14em; color:var(--ink-dim); margin-bottom: 10px;">
         Recent uploads &middot; <span id="resume-count">0</span> file<span id="resume-plural">s</span> cached
@@ -421,6 +418,10 @@
       </div>
     </div>
     <form class="upload-form" id="upload-form">
+      <div class="file-input-group">
+        <label for="user-name-input">Your Name</label>
+        <input type="text" id="user-name-input" placeholder="Used in PDF export filenames" autocomplete="name">
+      </div>
       <div class="file-input-group">
         <label for="file-inputs">NDJSON Data Files</label>
         <input type="file" id="file-inputs" accept=".ndjson" multiple required>
@@ -441,6 +442,7 @@
         <option value="diff" selected>Sort: % Change</option>
         <option value="key">Sort: Key</option>
       </select>
+      <a class="meta-link" id="name-btn" style="cursor:pointer;"></a>
       <a class="meta-link" id="change-snapshots-btn" style="cursor:pointer;">Upload data</a>
       <a class="meta-link" id="share-btn" style="cursor:pointer;">Share</a>
       <a class="meta-link" onclick="document.getElementById('pdf-modal-overlay').classList.add('open')" style="cursor:pointer;">Instructions</a>
@@ -500,7 +502,8 @@
       <span class="selection-bar-count"><b id="sel-count">0</b> selected</span>
       <div class="selection-bar-actions">
         <button class="sel-btn" id="sel-clear">clear</button>
-        <button class="sel-btn primary" id="sel-export">export pdf</button>
+        <button class="sel-btn primary" id="sel-export-device">save to device</button>
+        <button class="sel-btn primary" id="sel-export-drive">save to drive</button>
       </div>
     </div>
     <div id="drive-toast" class="drive-toast"></div>
@@ -525,6 +528,39 @@ let allDocs = [];
 let snapshots = [];
 
 const SELECTION_KEY = 'atc-search-selection-v1';
+const USER_NAME_KEY = 'ld_user_name';
+
+function getUserName() { return localStorage.getItem(USER_NAME_KEY) || ''; }
+function setUserName(v) { localStorage.setItem(USER_NAME_KEY, v.trim()); }
+
+function updateNameBtn() {
+  const name = getUserName();
+  const el = $('name-btn');
+  if (el) el.textContent = name || 'Set name';
+}
+
+// Populate name field and header on load
+{
+  const n = getUserName();
+  const inp = $('user-name-input');
+  if (inp) inp.value = n;
+  updateNameBtn();
+}
+
+$('user-name-input').addEventListener('input', function() {
+  setUserName(this.value);
+  updateNameBtn();
+});
+
+$('name-btn').addEventListener('click', () => {
+  const v = prompt('Your name (used in PDF export filenames):', getUserName());
+  if (v !== null) {
+    setUserName(v);
+    const inp = $('user-name-input');
+    if (inp) inp.value = getUserName();
+    updateNameBtn();
+  }
+});
 
 const GH_OWNER = 'ghoshaan';
 const GH_REPO = 'lazy-detective';
@@ -1414,7 +1450,7 @@ function renderDoc(d) {
 
   const adsbUrl = displayDoc.key ? buildAdsbReplayUrl(displayDoc.key) : null;
   const adsbEl = adsbUrl
-    ? `<a class="adsb-btn" href="${escapeAttr(adsbUrl)}" target="_blank" rel="noopener" title="Open ADSB replay" aria-label="Open ADSB replay"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8 Q5 3 8 8 Q11 13 14 8"/><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"/></svg></a>`
+    ? `<a class="adsb-btn" href="${escapeAttr(adsbUrl)}" onclick="event.preventDefault();window.open(this.href,'adsb-replay')" title="Open ADSB replay" aria-label="Open ADSB replay"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8 Q5 3 8 8 Q11 13 14 8"/><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"/></svg></a>`
     : '';
 
   const aipUrl = displayDoc.key ? buildAipChartsUrl(displayDoc.key) : null;
@@ -2040,7 +2076,12 @@ $('sel-clear').addEventListener('click', () => {
   document.querySelectorAll('.select-cb').forEach(cb => cb.checked = false);
 });
 
-$('sel-export').addEventListener('click', () => exportPdf().catch(err => {
+$('sel-export-device').addEventListener('click', () => exportPdfToDevice().catch(err => {
+  console.error('exportPdf error:', err);
+  showDriveToast(`Export error: ${err.message}`, 5000);
+}));
+
+$('sel-export-drive').addEventListener('click', () => exportPdfToDrive().catch(err => {
   console.error('exportPdf error:', err);
   showDriveToast(`Export error: ${err.message}`, 5000);
 }));
@@ -2109,8 +2150,8 @@ async function uploadPdfToDrive(blob, filename) {
   return res.json();
 }
 
-async function exportPdf() {
-  if (!selection.size) return;
+function buildExportMeta() {
+  if (!selection.size) return null;
   const docs = allDocs.filter(d => selection.has(d.id));
   docs.sort((a, b) => String(a.key || '').localeCompare(String(b.key || '')));
 
@@ -2121,32 +2162,27 @@ async function exportPdf() {
   let commonRole = '';
   if (annotators.length === 1) { commonId = annotators[0]; commonRole = 'labeler'; }
   else if (reviewers.length === 1) { commonId = reviewers[0]; commonRole = 'reviewer'; }
-
   if (!commonId) {
     commonId = prompt('Multiple reviewers/labelers found. Enter ID for filename:', 'transcripts') || 'transcripts';
   }
 
   const today = new Date().toISOString().slice(0, 10);
   const exportTitle = `${commonId} ${today}`;
-  const htmlString = buildExportHtml(docs, exportTitle, commonId, commonRole);
+  const tlName = getUserName();
+  return { docs, exportTitle, commonId, commonRole, tlName };
+}
 
-  if (!DRIVE_WORKER_URL) {
-    // No worker configured — use browser print dialog as before
-    const w = window.open('', '_blank');
-    if (!w) { alert('popup blocked — allow popups to export'); return; }
-    w.document.open();
-    w.document.write(htmlString);
-    w.document.close();
-    w.addEventListener('load', () => setTimeout(() => w.print(), 500));
-    return;
-  }
+async function exportPdfToDevice() {
+  const meta = buildExportMeta();
+  if (!meta) return;
+  const { docs, exportTitle, commonId, commonRole, tlName } = meta;
+  const htmlString = buildExportHtml(docs, exportTitle, commonId, commonRole, tlName);
 
   showDriveToast('Generating PDF…');
   let blob;
   try {
     blob = await generatePdfBlob(htmlString, exportTitle);
   } catch (err) {
-    // Fall back to print dialog if PDF generation fails
     hideDriveToast();
     console.warn('html2pdf failed, falling back to print dialog:', err);
     const w = window.open('', '_blank');
@@ -2158,11 +2194,47 @@ async function exportPdf() {
     return;
   }
 
-  // Upload to Drive; fall back to local download on failure
+  hideDriveToast();
+  const dlUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = dlUrl;
+  a.download = `${exportTitle}.pdf`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(dlUrl), 60000);
+}
+
+async function exportPdfToDrive() {
+  const meta = buildExportMeta();
+  if (!meta) return;
+  const { docs, exportTitle, commonId, commonRole, tlName } = meta;
+  const htmlString = buildExportHtml(docs, exportTitle, commonId, commonRole, tlName);
+
+  if (!DRIVE_WORKER_URL) {
+    showDriveToast('Drive not configured — saving to device instead', 4000);
+    return exportPdfToDevice();
+  }
+
+  showDriveToast('Generating PDF…');
+  let blob;
+  try {
+    blob = await generatePdfBlob(htmlString, exportTitle);
+  } catch (err) {
+    hideDriveToast();
+    console.warn('html2pdf failed, falling back to print dialog:', err);
+    const w = window.open('', '_blank');
+    if (!w) { alert('popup blocked — allow popups to export'); return; }
+    w.document.open();
+    w.document.write(htmlString);
+    w.document.close();
+    w.addEventListener('load', () => setTimeout(() => w.print(), 500));
+    return;
+  }
+
   showDriveToast('Saving to Drive…');
   uploadPdfToDrive(blob, `${exportTitle}.pdf`)
     .then(result => {
-      showDriveToast(`Saved to Drive — <a href="${result.url}" target="_blank">open</a>`, 8000);
+      showDriveToast('Saved to Drive', 4000);
+      window.open(result.url, '_blank');
     })
     .catch(err => {
       showDriveToast(`Drive save failed — saving locally instead`, 6000);
@@ -2175,7 +2247,7 @@ async function exportPdf() {
     });
 }
 
-function buildExportHtml(docs, title, commonId, commonRole) {
+function buildExportHtml(docs, title, commonId, commonRole, tlName) {
   const today = new Date().toISOString().slice(0, 10);
   const pcts = docs.filter(d => d.versions && d.versions.length).map(d => {
     const tlEdit = tlEditsMap.get(String(d.id));
@@ -2265,6 +2337,9 @@ function buildExportHtml(docs, title, commonId, commonRole) {
 </style>
 </head><body class="export-body">
 
+<h1 class="export-h1">ATC ${commonRole === 'labeler' ? 'Labeler' : commonRole === 'reviewer' ? 'Reviewer' : 'Labeler/Reviewer'} Audit Report</h1>
+<div class="export-meta">${docs.length} recording${docs.length === 1 ? '' : 's'} &middot; exported ${today}${tlName ? ` &middot; <span style="font-style:italic;">prepared by ${escapeHtml(tlName)}</span>` : ''}</div>
+${statsHtml}
 ${genCommentHtml}
 ${docsHtml}
 </body></html>`;
