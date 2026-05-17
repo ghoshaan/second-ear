@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "ADSB Replay Speed",
+  "version": "1.0",
+  "description": "Sets globe.adsbexchange.com replay speed to 500x automatically.",
+  "permissions": ["scripting", "webNavigation"],
+  "host_permissions": ["*://globe.adsbexchange.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

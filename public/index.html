@@ -255,12 +255,20 @@
   .comment-row .comment-input { flex: 1; width: auto; }
   .comment-input { width: 100%; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink); font-family: inherit; font-size: 13px; padding: 8px 12px; border-radius: 0; outline: none; resize: vertical; min-height: 44px; transition: border-color 0.15s; }
   .comment-input:focus { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
-  .major-btn { flex-shrink: 0; width: 66px; min-height: 44px; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink-dim); font-size: 11px; font-family: inherit; cursor: pointer; transition: all 0.15s; line-height: 1.3; }
+  .comment-btns { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+  .paste-btn { width: 66px; min-height: 28px; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink-dim); font-size: 11px; font-family: inherit; cursor: pointer; transition: all 0.15s; line-height: 1.3; }
+  .paste-btn:hover { border-color: var(--amber); color: var(--amber); }
+  .major-btn { width: 66px; min-height: 44px; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink-dim); font-size: 11px; font-family: inherit; cursor: pointer; transition: all 0.15s; line-height: 1.3; }
   .major-btn:hover { border-color: #c0392b; color: #c0392b; }
   .major-btn.active { background: rgba(192,57,43,0.12); border-color: #c0392b; color: #c0392b; font-weight: 600; }
   .comment-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .pasted-img-wrap { position: relative; width: 120px; height: 80px; border: 1px solid var(--line-2); background: var(--bg); }
   .pasted-img-wrap img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+  #img-lightbox { display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.88); align-items: center; justify-content: center; cursor: zoom-out; }
+  #img-lightbox.open { display: flex; }
+  #img-lightbox img { max-width: 92vw; max-height: 92vh; object-fit: contain; box-shadow: 0 8px 48px rgba(0,0,0,0.7); cursor: default; }
+  #img-lightbox-close { position: fixed; top: 16px; right: 20px; background: none; border: none; color: #fff; font-size: 28px; line-height: 1; cursor: pointer; opacity: 0.7; }
+  #img-lightbox-close:hover { opacity: 1; }
   .pasted-img-wrap .remove-img, .pasted-img-wrap .remove-img-gen { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; background: var(--red); color: white; border: none; border-radius: 50%; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; font-weight: bold; }
   .pasted-img-wrap .remove-img:hover, .pasted-img-wrap .remove-img-gen:hover { filter: brightness(1.2); }
 
@@ -370,6 +378,7 @@
 </style>
 </head>
 <body>
+<div id="img-lightbox"><button id="img-lightbox-close" aria-label="Close">&times;</button><img id="img-lightbox-img" src="" alt=""></div>
 
 <div id="drop-overlay" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(11,14,12,0.8); border:4px dashed var(--amber); align-items:center; justify-content:center; pointer-events:none; flex-direction:column; gap:16px;">
   <div style="font-family:'Fraunces', serif; font-size:32px; color:var(--amber); font-style:italic;">Drop files to upload</div>
@@ -649,7 +658,7 @@ function renderGeneralCommentImages() {
   if (!container) return;
   container.innerHTML = generalCommentImages.map((src, i) => `
     <div class="pasted-img-wrap">
-      <img src="${src}" onclick="window.open(this.src)">
+      <img src="${src}" onclick="openLightbox(this.src)">
       <button class="remove-img-gen" data-idx="${i}">&times;</button>
     </div>
   `).join('');
@@ -1428,7 +1437,7 @@ function renderDoc(d) {
   const images = Array.isArray(saved.images) ? saved.images : [];
   const imgsHtml = images.map((src, i) => `
     <div class="pasted-img-wrap">
-      <img src="${src}" onclick="window.open(this.src)">
+      <img src="${src}" onclick="openLightbox(this.src)">
       <button class="remove-img" data-cid="${escapeAttr(String(d.id))}" data-idx="${i}">&times;</button>
     </div>
   `).join('');
@@ -1438,7 +1447,10 @@ function renderDoc(d) {
     <div class="comment-wrap">
       <div class="comment-row">
         <textarea class="comment-input" data-cid="${escapeAttr(String(d.id))}" placeholder="Add a comment or paste screenshot...">${escapeHtml(text)}</textarea>
-        <button class="major-btn${isMajor ? ' active' : ''}" data-mid="${escapeAttr(String(d.id))}">&#9873;<br>Major</button>
+        <div class="comment-btns">
+          <button class="paste-btn" data-cid="${escapeAttr(String(d.id))}" title="Paste text or image from clipboard">&#128203; Paste</button>
+          <button class="major-btn${isMajor ? ' active' : ''}" data-mid="${escapeAttr(String(d.id))}">&#9873;<br>Major</button>
+        </div>
       </div>
       <div class="comment-images" id="imgs-${escapeAttr(String(d.id))}">${imgsHtml}</div>
     </div>
@@ -1734,6 +1746,13 @@ function renderHistory(d) {
 function formatMs(ms) { return ms == null ? '' : (ms / 1000).toFixed(2) + 's'; }
 function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 function escapeAttr(s) { return escapeHtml(s).replace(/`/g, '&#96;'); }
+
+const _lb = document.getElementById('img-lightbox');
+const _lbImg = document.getElementById('img-lightbox-img');
+function openLightbox(src) { _lbImg.src = src; _lb.classList.add('open'); }
+function closeLightbox() { _lb.classList.remove('open'); _lbImg.src = ''; }
+_lb.addEventListener('click', e => { if (e.target === _lb || e.target.id === 'img-lightbox-close') closeLightbox(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 function renderText(s) {
   const ARROW = `<span style="font-size:18px;">&#10230;</span>`;
   return escapeHtml(s).replace(/--&gt;/g, ARROW).replace(/-&gt;/g, ARROW);
@@ -1826,7 +1845,7 @@ function handlePaste(e) {
             const final = commentsMap.get(id);
             container.innerHTML = final.images.map((src, i) => `
               <div class="pasted-img-wrap">
-                <img src="${src}" onclick="window.open(this.src)">
+                <img src="${src}" onclick="openLightbox(this.src)">
                 <button class="remove-img" data-cid="${escapeAttr(id)}" data-idx="${i}">&times;</button>
               </div>
             `).join('');
@@ -1964,6 +1983,69 @@ document.addEventListener('click', e => {
     return;
   }
 
+  // Paste button
+  const pasteBtn = e.target.closest('.paste-btn');
+  if (pasteBtn) {
+    const id = pasteBtn.dataset.cid;
+    navigator.clipboard.read().then(items => {
+      for (const item of items) {
+        // Text
+        if (item.types.includes('text/plain')) {
+          item.getType('text/plain').then(blob => blob.text()).then(txt => {
+            if (!txt) return;
+            const ta = document.querySelector(`.comment-input[data-cid="${CSS.escape(id)}"]`);
+            if (!ta) return;
+            const start = ta.selectionStart, end = ta.selectionEnd;
+            ta.value = ta.value.slice(0, start) + txt + ta.value.slice(end);
+            ta.selectionStart = ta.selectionEnd = start + txt.length;
+            ta.dispatchEvent(new Event('input', { bubbles: true }));
+          });
+        }
+        // Image
+        const imgType = item.types.find(t => t.startsWith('image/'));
+        if (imgType) {
+          item.getType(imgType).then(blob => {
+            const reader = new FileReader();
+            reader.onload = ev => {
+              const dataUrl = ev.target.result;
+              const current = commentsMap.get(id) || { text: '', images: [] };
+              if (typeof current === 'string') {
+                commentsMap.set(id, { text: current, images: [dataUrl] });
+              } else {
+                current.images = [...(current.images || []), dataUrl];
+                commentsMap.set(id, current);
+              }
+              saveComments();
+              if (!selection.has(id)) {
+                selection.add(id);
+                saveSelection();
+                updateSelectionBar();
+                const cb = document.querySelector(`.select-cb[data-sel="${CSS.escape(id)}"]`);
+                if (cb) cb.checked = true;
+              }
+              const container = document.getElementById(`imgs-${id}`);
+              if (container) {
+                const final = commentsMap.get(id);
+                container.innerHTML = final.images.map((src, i) => `
+                  <div class="pasted-img-wrap">
+                    <img src="${src}" onclick="openLightbox(this.src)">
+                    <button class="remove-img" data-cid="${escapeAttr(id)}" data-idx="${i}">&times;</button>
+                  </div>
+                `).join('');
+              }
+            };
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    }).catch(() => {
+      // Clipboard access denied — fall back to focusing the textarea so the user can Ctrl+V
+      const ta = document.querySelector(`.comment-input[data-cid="${CSS.escape(id)}"]`);
+      if (ta) ta.focus();
+    });
+    return;
+  }
+
   // Major button
   const majorBtn = e.target.closest('.major-btn');
   if (majorBtn) {
@@ -2014,7 +2096,7 @@ document.addEventListener('click', e => {
       if (container) {
         container.innerHTML = (current.images || []).map((src, i) => `
           <div class="pasted-img-wrap">
-            <img src="${src}" onclick="window.open(this.src)">
+            <img src="${src}" onclick="openLightbox(this.src)">
             <button class="remove-img" data-cid="${escapeAttr(id)}" data-idx="${i}">&times;</button>
           </div>
         `).join('');
