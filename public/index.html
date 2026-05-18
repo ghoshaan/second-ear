@@ -566,8 +566,7 @@
       <span class="selection-bar-count"><b id="sel-count">0</b> selected</span>
       <div class="selection-bar-actions">
         <button class="sel-btn" id="sel-clear">clear</button>
-        <button class="sel-btn primary" id="sel-export-device">save to device</button>
-        <button class="sel-btn primary" id="sel-export-drive">save to drive</button>
+        <button class="sel-btn primary" id="sel-export-drive">save</button>
       </div>
     </div>
     <div id="drive-toast" class="drive-toast"></div>
@@ -2382,11 +2381,6 @@ $('sel-clear').addEventListener('click', () => {
   selection.clear(); saveSelection(); updateSelectionBar();
   document.querySelectorAll('.select-cb').forEach(cb => cb.checked = false);
 });
-
-$('sel-export-device').addEventListener('click', () => exportPdfToDevice().catch(err => {
-  console.error('exportPdf error:', err);
-  showDriveToast(`Export error: ${err.message}`, 5000);
-}));
 
 $('sel-export-drive').addEventListener('click', () => exportPdfToDrive().catch(err => {
   console.error('exportPdf error:', err);
