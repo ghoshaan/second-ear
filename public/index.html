@@ -1529,12 +1529,12 @@ function renderDoc(d) {
         <div class="result-content">
           ${hasTlEdit ? '' : `<div class="segments">${segs}</div>`}
           ${renderHistory(d)}
+          ${renderTlEditor(d)}
         </div>
       </div>
       ${audioEl}
       ${metaLine}
       ${commentUI}
-      ${renderTlEditor(d)}
     </article>
   `;
 }
