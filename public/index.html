@@ -250,8 +250,8 @@
   }
   /* Comments */
   .comment-wrap { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--line-2); }
-  .comment-row { display: flex; gap: 8px; align-items: flex-start; }
-  .comment-row .comment-input { flex: 1; width: auto; }
+  .comment-row { display: flex; gap: 8px; align-items: stretch; }
+  .comment-row .comment-input { flex: 1; width: auto; resize: none; min-height: 0; }
   .comment-input { width: 100%; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink); font-family: inherit; font-size: 13px; padding: 8px 12px; border-radius: 0; outline: none; resize: vertical; min-height: 44px; transition: border-color 0.15s; }
   .comment-input:focus { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
   .comment-btns { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
@@ -1521,7 +1521,7 @@ function renderDoc(d) {
           <span class="tag-dur">${dur}</span>
         </div>
       </header>
-      <div class="segments">${segs}</div>
+      ${hasTlEdit ? '' : `<div class="segments">${segs}</div>`}
       ${audioEl}
       ${metaLine}
       ${renderHistory(d)}
