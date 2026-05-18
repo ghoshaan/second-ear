@@ -94,6 +94,8 @@
   .tag-dur { color: var(--ink-dim); border: none; padding-left: 4px; }
   .tag-reviewed { color: var(--pilot); border-color: rgba(111,207,151,0.4); cursor: help; }
   .tag-unapproved { color: var(--ink-faint); border-color: var(--line-2); opacity: 0.8; }
+  .clear-row-btn { background: transparent; border: none; color: var(--ink-faint); font-size: 10px; font-family: inherit; text-transform: uppercase; letter-spacing: 0.12em; cursor: pointer; padding: 2px 4px; opacity: 0.4; transition: opacity 0.15s, color 0.15s; }
+  .clear-row-btn:hover { color: var(--red); opacity: 1; }
   .segments { display: grid; gap: 4px; margin-top: 8px; }
 
   .seg { display: grid; grid-template-columns: 56px auto 1fr; gap: 12px; align-items: baseline; padding: 4px 0; }
@@ -1522,6 +1524,7 @@ function renderDoc(d) {
         <div class="result-tags">
           ${reviewTag}
           <span class="tag-dur">${dur}</span>
+          <button class="clear-row-btn" data-clearid="${escapeAttr(String(d.id))}" title="Clear annotations for this row">✕ clear</button>
         </div>
       </header>
       <div class="result-body">
@@ -2249,6 +2252,31 @@ document.addEventListener('click', e => {
             <button class="remove-img" data-cid="${escapeAttr(id)}" data-idx="${i}">&times;</button>
           </div>
         `).join('');
+      }
+    }
+    return;
+  }
+
+  // Clear row annotations
+  const clearBtn = e.target.closest('.clear-row-btn');
+  if (clearBtn) {
+    const id = clearBtn.dataset.clearid;
+    ratingMap.delete(id);
+    commentsMap.delete(id);
+    tlEditsMap.delete(id);
+    selection.delete(id);
+    saveMajor();
+    saveComments();
+    saveTlEdits();
+    saveSelection();
+    updateSelectionBar();
+    const doc = allDocs.find(d => String(d.id) === id);
+    if (doc) {
+      const article = document.querySelector(`article[data-docid="${CSS.escape(id)}"]`);
+      if (article) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = renderDoc(doc);
+        article.replaceWith(tmp.firstElementChild);
       }
     }
     return;
