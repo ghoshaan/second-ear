@@ -1668,9 +1668,18 @@ function renderAlignedDiff(slots) {
       i++;
     }
 
-    const top = groupOld.length ? `<span class="da-del">${groupOld.map(renderText).join(' ')}</span>` : '<span></span>';
-    const bot = groupNew.length ? `<span class="da-ins">${groupNew.map(renderText).join(' ')}</span>` : '<span></span>';
-    result.push(`<span class="da-col">${top}${bot}</span>`);
+    if (groupOld.length && groupNew.length) {
+      // It's a replacement: Show stacked column
+      const top = `<span class="da-del">${groupOld.map(renderText).join(' ')}</span>`;
+      const bot = `<span class="da-ins">${groupNew.map(renderText).join(' ')}</span>`;
+      result.push(`<span class="da-col">${top}${bot}</span>`);
+    } else if (groupOld.length) {
+      // Pure deletion: Show inline
+      result.push(`<span class="da-del">${groupOld.map(renderText).join(' ')}</span>`);
+    } else if (groupNew.length) {
+      // Pure addition: Show inline
+      result.push(`<span class="da-ins">${groupNew.map(renderText).join(' ')}</span>`);
+    }
   }
 
   return `<span class="diff-aligned">${result.join('')}</span>`;
