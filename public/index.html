@@ -314,6 +314,26 @@
   .pdf-modal-close:hover { color: var(--amber); border-color: var(--amber); }
   .pdf-modal iframe { flex: 1; border: none; background: #fff; }
 
+  /* Drive upload modal */
+  .drive-upload-overlay {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.85); align-items: center; justify-content: center;
+  }
+  .drive-upload-overlay.open { display: flex; }
+  .drive-upload-modal {
+    width: min(92vw, 400px); background: var(--panel); border: 1px solid var(--line-2);
+    display: flex; flex-direction: column;
+  }
+  .drive-upload-zone {
+    margin: 14px; border: 2px dashed var(--line-2); padding: 28px 16px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    cursor: pointer; transition: border-color 0.15s, background 0.15s; text-align: center;
+    color: var(--ink-dim);
+  }
+  .drive-upload-zone:hover, .drive-upload-zone.drag-over {
+    border-color: var(--amber); background: rgba(255,179,71,0.04); color: var(--ink);
+  }
+
   /* Share modal */
   .share-modal-overlay {
     display: none; position: fixed; inset: 0; z-index: 100;
@@ -397,6 +417,23 @@
   <div style="color:var(--ink-dim); text-transform:uppercase; letter-spacing:0.14em; font-size:13px;">NDJSON data snapshots</div>
 </div>
 
+
+<div class="drive-upload-overlay" id="drive-upload-overlay">
+  <div class="drive-upload-modal">
+    <div class="pdf-modal-header">
+      <span>Upload to Drive</span>
+      <button class="pdf-modal-close" id="drive-upload-close">Close</button>
+    </div>
+    <div style="padding:14px 16px 0;font-size:12px;color:var(--ink-dim);line-height:1.65;">
+      The print dialog is open — save the PDF, then drop it below or click to upload to Drive.
+    </div>
+    <label class="drive-upload-zone" id="drive-upload-zone">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;font-weight:600;">Drop PDF / click to choose</div>
+      <input type="file" id="drive-upload-input" accept=".pdf,application/pdf" style="display:none;">
+    </label>
+    <div id="drive-upload-status" style="padding:0 16px 14px;font-size:12px;color:var(--ink-dim);min-height:18px;"></div>
+  </div>
+</div>
 
 <div class="share-modal-overlay" id="share-modal-overlay">
   <div class="share-modal">
@@ -1227,6 +1264,7 @@ let dragCounter = 0;
 
 window.addEventListener('dragenter', e => {
   if (!e.dataTransfer?.types?.includes('Files')) return;
+  if ($('drive-upload-overlay').classList.contains('open')) return;
   dragCounter++;
   if (dragCounter === 1) {
     dropOverlay.style.display = 'flex';
@@ -1236,6 +1274,7 @@ window.addEventListener('dragenter', e => {
 
 window.addEventListener('dragleave', e => {
   if (!e.dataTransfer?.types?.includes('Files')) return;
+  if ($('drive-upload-overlay').classList.contains('open')) return;
   dragCounter--;
   if (dragCounter === 0) {
     dropOverlay.style.display = 'none';
@@ -2436,28 +2475,60 @@ async function exportPdfToDevice() {
   openPrintWindow(htmlString);
 }
 
+let lastExportTitle = '';
+
 async function exportPdfToDrive() {
   const meta = buildExportMeta();
   if (!meta) return;
   const { docs, exportTitle, commonId, commonRole, tlName } = meta;
   const htmlString = buildExportHtml(docs, exportTitle, commonId, commonRole, tlName);
 
-  if (!DRIVE_WORKER_URL) {
-    showDriveToast('Drive not configured — opening print dialog', 4000);
-    return exportPdfToDevice();
-  }
+  lastExportTitle = exportTitle;
+  openPrintWindow(htmlString);
 
-  showDriveToast('Saving to Drive…');
-  const blob = new Blob([htmlString], { type: 'text/html' });
-  uploadFileToDrive(blob, `${exportTitle}.html`, 'text/html')
-    .then(result => {
-      showDriveToast('Saved to Drive', 4000);
-      window.open(result.url, '_blank');
-    })
-    .catch(err => {
-      showDriveToast(`Drive save failed — opening print dialog`, 6000);
-      exportPdfToDevice();
-    });
+  if (DRIVE_WORKER_URL) {
+    $('drive-upload-status').textContent = '';
+    $('drive-upload-overlay').classList.add('open');
+  }
+}
+
+$('drive-upload-close').addEventListener('click', () => $('drive-upload-overlay').classList.remove('open'));
+$('drive-upload-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+});
+
+$('drive-upload-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) driveUploadFile(file);
+  e.target.value = '';
+});
+
+const driveZone = $('drive-upload-zone');
+driveZone.addEventListener('dragenter', e => { e.preventDefault(); e.stopPropagation(); driveZone.classList.add('drag-over'); });
+driveZone.addEventListener('dragover',  e => { e.preventDefault(); e.stopPropagation(); });
+driveZone.addEventListener('dragleave', e => { e.stopPropagation(); driveZone.classList.remove('drag-over'); });
+driveZone.addEventListener('drop', e => {
+  e.preventDefault(); e.stopPropagation();
+  driveZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) driveUploadFile(file);
+});
+
+async function driveUploadFile(file) {
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    $('drive-upload-status').textContent = 'Please select a PDF file.';
+    return;
+  }
+  const filename = lastExportTitle ? `${lastExportTitle}.pdf` : file.name;
+  const statusEl = $('drive-upload-status');
+  statusEl.textContent = 'Uploading…';
+  try {
+    const result = await uploadFileToDrive(file, filename, 'application/pdf');
+    statusEl.innerHTML = `Saved · <a href="${result.url}" target="_blank" style="color:var(--amber);">Open in Drive ↗</a>`;
+    showDriveToast('Saved to Drive', 4000);
+  } catch (err) {
+    statusEl.textContent = `Upload failed: ${err.message}`;
+  }
 }
 
 function buildExportHtml(docs, title, commonId, commonRole, tlName) {
