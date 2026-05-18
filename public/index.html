@@ -1487,8 +1487,8 @@ function renderDoc(d) {
   const commentUI = `
     <div class="comment-wrap">
       <div class="comment-row">
-        <textarea class="comment-input" data-cid="${escapeAttr(String(d.id))}" placeholder="Add a comment or paste screenshot...">${escapeHtml(text)}</textarea>
         <button class="paste-btn" data-cid="${escapeAttr(String(d.id))}" title="Paste text or image from clipboard">&#128203; Paste</button>
+        <textarea class="comment-input" data-cid="${escapeAttr(String(d.id))}" placeholder="Add a comment or paste screenshot...">${escapeHtml(text)}</textarea>
       </div>
       <div class="comment-images" id="imgs-${escapeAttr(String(d.id))}">${imgsHtml}</div>
     </div>
