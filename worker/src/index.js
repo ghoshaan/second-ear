@@ -1,4 +1,4 @@
-const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const SCOPE = 'https://www.googleapis.com/auth/drive';
 const GH_OWNER = 'ghoshaan';
 const GH_REPO = 'lazy-detective';
 const DIRECTORY_PATH = 'public/directory.json';
@@ -121,7 +121,7 @@ async function uploadToDrive(accessToken, pdfBuffer, filename, folderId) {
   }
 
   const res = await fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name&supportsAllDrives=true',
     {
       method: 'POST',
       headers: {
@@ -214,15 +214,15 @@ async function handleDriveSearch(request, env, url, corsHeaders) {
     );
 
     const safeQ = q.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    const driveQuery = env.FOLDER_ID
-      ? `'${env.FOLDER_ID}' in parents and name contains '${safeQ}' and trashed = false`
-      : `name contains '${safeQ}' and trashed = false`;
+    const driveQuery = `name contains '${safeQ}' and mimeType = 'application/pdf' and trashed = false`;
 
     const listUrl = new URL('https://www.googleapis.com/drive/v3/files');
     listUrl.searchParams.set('q', driveQuery);
     listUrl.searchParams.set('fields', 'files(id,name,createdTime,webViewLink)');
     listUrl.searchParams.set('orderBy', 'createdTime desc');
     listUrl.searchParams.set('pageSize', '50');
+    listUrl.searchParams.set('supportsAllDrives', 'true');
+    listUrl.searchParams.set('includeItemsFromAllDrives', 'true');
 
     const res = await fetch(listUrl.toString(), {
       headers: { Authorization: `Bearer ${accessToken}` },
