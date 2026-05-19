@@ -208,10 +208,9 @@
   .filter-clear:hover { color: var(--amber); border-color: rgba(255,179,71,0.4); }
 
   /* Selection */
-  .result-head-row { display: flex; gap: 0; align-items: center; flex: 1; min-width: 0; }
+  .result-head-row { display: flex; gap: 12px; align-items: center; flex: 1; min-width: 0; }
   .result-head-left { width: 66px; flex-shrink: 0; display: flex; justify-content: flex-end; align-items: center; }
-  .result-head-content { flex: 1; min-width: 0; display: flex; align-items: baseline; }
-  .result-head-time { width: 68px; flex-shrink: 0; display: flex; align-items: center; }
+  .result-head-row .result-key-inner { margin-left: 56px; }
   .select-cb {
     appearance: none; -webkit-appearance: none;
     width: 14px; height: 14px; border: 1px solid var(--line-2);
@@ -1588,9 +1587,9 @@ function renderDoc(d) {
   return `
     <article class="result" data-docid="${escapeAttr(String(d.id))}">
       <header class="result-head">
-        <div class="result-head-row"><div class="result-head-left">${cbEl}</div><div class="result-head-content"><div class="result-head-time">${tlBadge}</div><span class="result-key-inner">${keyEl}${copyKeyEl}${adsbEl}${aipEl}</span></div></div>
+        <div class="result-head-row"><div class="result-head-left">${cbEl}</div><span class="result-key-inner">${keyEl}${copyKeyEl}${adsbEl}${aipEl}</span></div>
         <div class="result-tags">
-          ${reviewTag}
+          ${tlBadge}${reviewTag}
           <span class="tag-dur">${dur}</span>
           <button class="clear-row-btn" data-clearid="${escapeAttr(String(d.id))}" title="Clear annotations for this row">✕ clear</button>
         </div>
