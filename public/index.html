@@ -478,7 +478,14 @@
     <form class="upload-form" id="upload-form">
       <div class="file-input-group">
         <label for="user-name-input">Your Name</label>
-        <input type="text" id="user-name-input" placeholder="Shown in PDF header and audit directory" autocomplete="name">
+        <input type="text" id="user-name-input" placeholder="Shown in PDF header as 'prepared by'" autocomplete="name">
+      </div>
+      <div class="file-input-group">
+        <label for="batch-name-input">Batch Name</label>
+        <input type="text" id="batch-name-input" placeholder="e.g. Batch 42 · KJFK · May 2026" autocomplete="off">
+      </div>
+      <div style="font-size:11px; color:var(--ink-faint); margin-top:-8px; line-height:1.5;">
+        Today's date is added automatically to the PDF header.
       </div>
       <div class="file-input-group">
         <label for="file-inputs">NDJSON Data Files</label>
@@ -604,9 +611,12 @@ let snapshots = [];
 
 const SELECTION_KEY = 'atc-search-selection-v1';
 const USER_NAME_KEY = 'ld_user_name';
+const BATCH_NAME_KEY = 'ld_batch_name';
 
 function getUserName() { return localStorage.getItem(USER_NAME_KEY) || ''; }
 function setUserName(v) { localStorage.setItem(USER_NAME_KEY, v.trim()); }
+function getBatchName() { return localStorage.getItem(BATCH_NAME_KEY) || ''; }
+function setBatchName(v) { localStorage.setItem(BATCH_NAME_KEY, v); }
 
 function updateNameBtn() {
   const name = getUserName();
@@ -614,17 +624,23 @@ function updateNameBtn() {
   if (el) el.textContent = name || 'Set name';
 }
 
-// Populate name field and header on load
+// Populate name/batch fields on load
 {
   const n = getUserName();
   const inp = $('user-name-input');
   if (inp) inp.value = n;
+  const bInp = $('batch-name-input');
+  if (bInp) bInp.value = getBatchName();
   updateNameBtn();
 }
 
 $('user-name-input').addEventListener('input', function() {
   setUserName(this.value);
   updateNameBtn();
+});
+
+$('batch-name-input').addEventListener('input', function() {
+  setBatchName(this.value);
 });
 
 $('name-btn').addEventListener('click', () => {
@@ -1557,7 +1573,7 @@ function renderDoc(d) {
     ? `<a class="adsb-btn" href="${escapeAttr(aipUrl)}" target="_blank" rel="noopener" title="Open AIP charts" aria-label="Open AIP charts"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2" width="10" height="12" rx="1"/><line x1="5" y1="5.5" x2="11" y2="5.5"/><line x1="5" y1="8" x2="11" y2="8"/><line x1="5" y1="10.5" x2="8.5" y2="10.5"/></svg></a>`
     : '';
 
-  const isSel = selection.has(d.id) ? 'checked' : '';
+  const isSel = selection.has(String(d.id)) ? 'checked' : '';
   const cbEl = `<input type="checkbox" class="select-cb" data-sel="${escapeAttr(String(d.id))}" ${isSel}>`;
 
   return `
@@ -2367,7 +2383,7 @@ results.addEventListener('change', e => {
 
 $('sel-all-cb').addEventListener('change', e => {
   if (e.target.checked) {
-    filteredDocs.forEach(d => selection.add(d.id));
+    filteredDocs.forEach(d => selection.add(String(d.id)));
     document.querySelectorAll('.select-cb:not(#sel-all-cb)').forEach(cb => cb.checked = true);
   } else {
     selection.clear();
@@ -2442,7 +2458,7 @@ function buildExportMeta() {
     }
   }
 
-  const docs = allDocs.filter(d => selection.has(d.id));
+  const docs = allDocs.filter(d => selection.has(String(d.id)));
   docs.sort((a, b) => String(a.key || '').localeCompare(String(b.key || '')));
 
   const reviewers = [...new Set(docs.map(d => d.reviewedBy).filter(Boolean))];
@@ -2458,14 +2474,15 @@ function buildExportMeta() {
 
   const today = new Date().toISOString().slice(0, 10);
   const exportTitle = `${commonId} ${today}`;
-  return { docs, exportTitle, commonId, commonRole, tlName };
+  const batchName = getBatchName();
+  return { docs, exportTitle, commonId, commonRole, tlName, batchName };
 }
 
 async function exportPdfToDevice() {
   const meta = buildExportMeta();
   if (!meta) return;
-  const { docs, exportTitle, commonId, commonRole, tlName } = meta;
-  const htmlString = buildExportHtml(docs, exportTitle, commonId, commonRole, tlName);
+  const { docs, exportTitle, commonId, commonRole, tlName, batchName } = meta;
+  const htmlString = buildExportHtml(docs, exportTitle, commonId, commonRole, tlName, batchName);
   openPrintWindow(htmlString);
 }
 
@@ -2474,8 +2491,8 @@ let lastExportTitle = '';
 async function exportPdfToDrive() {
   const meta = buildExportMeta();
   if (!meta) return;
-  const { docs, exportTitle, commonId, commonRole, tlName } = meta;
-  const htmlString = buildExportHtml(docs, exportTitle, commonId, commonRole, tlName);
+  const { docs, exportTitle, commonId, commonRole, tlName, batchName } = meta;
+  const htmlString = buildExportHtml(docs, exportTitle, commonId, commonRole, tlName, batchName);
 
   lastExportTitle = exportTitle;
   openPrintWindow(htmlString);
@@ -2525,7 +2542,7 @@ async function driveUploadFile(file) {
   }
 }
 
-function buildExportHtml(docs, title, commonId, commonRole, tlName) {
+function buildExportHtml(docs, title, commonId, commonRole, tlName, batchName) {
   const today = new Date().toISOString().slice(0, 10);
   const pcts = docs.filter(d => d.versions && d.versions.length).map(d => {
     const tlEdit = tlEditsMap.get(String(d.id));
@@ -2627,6 +2644,7 @@ function buildExportHtml(docs, title, commonId, commonRole, tlName) {
 </head><body class="export-body">
 
 <h1 class="export-h1">ATC ${commonRole === 'labeler' ? 'Labeler' : commonRole === 'reviewer' ? 'Reviewer' : 'Labeler/Reviewer'} Audit Report</h1>
+${batchName ? `<div style="font-size:13pt;color:#444;margin:0 0 8pt;font-family:'Fraunces',serif;font-weight:300;font-style:italic;">${escapeHtml(batchName)}</div>` : ''}
 <div class="export-meta">${docs.length} recording${docs.length === 1 ? '' : 's'} &middot; exported ${today}${tlName ? ` &middot; <span style="font-style:italic;">prepared by ${escapeHtml(tlName)}</span>` : ''}</div>
 ${statsHtml}
 ${genCommentHtml}
@@ -2984,7 +3002,7 @@ $('share-btn').addEventListener('click', async () => {
       if (d.versions) d.versions.forEach(v => activeBatches.add(v.batch));
     };
     filteredDocs.forEach(addBatches);
-    allDocs.filter(d => selection.has(d.id)).forEach(addBatches);
+    allDocs.filter(d => selection.has(String(d.id))).forEach(addBatches);
 
     const allFiles = await loadFilesFromDb();
     const files = allFiles.filter(f => activeBatches.has(f.name));
@@ -2999,7 +3017,7 @@ $('share-btn').addEventListener('click', async () => {
 
     const activeIds = new Set();
     filteredDocs.forEach(d => activeIds.add(String(d.id)));
-    allDocs.filter(d => selection.has(d.id)).forEach(d => activeIds.add(String(d.id)));
+    allDocs.filter(d => selection.has(String(d.id))).forEach(d => activeIds.add(String(d.id)));
 
     const annotJson = serializeAnnotations(activeIds);
     const metaJson = JSON.stringify({
