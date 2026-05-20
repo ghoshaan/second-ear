@@ -55,7 +55,15 @@
       "Bash(git -C \"C:/Users/ghosh/Desktop/atc-search\" pull --rebase)",
       "Bash(git -C \"C:/Users/ghosh/Desktop/atc-search\" stash)",
       "Bash(git -C \"C:/Users/ghosh/Desktop/atc-search\" stash pop)",
-      "Bash(git -C \"C:/Users/ghosh/Desktop/atc-search\" add public/index.html public/directory.html worker/src/index.js)"
+      "Bash(git -C \"C:/Users/ghosh/Desktop/atc-search\" add public/index.html public/directory.html worker/src/index.js)",
+      "PowerShell(git *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\ghosh\\\\Desktop\\\\atc-search\" -Recurse -Force)",
+      "Bash(Select-Object -First 30)",
+      "Bash(Format-Table FullName)",
+      "Bash(python3 -c \"import sys,json; t=json.load\\(sys.stdin\\); [print\\(f'{i[\\\\\"size\\\\\"]:>12}  {i[\\\\\"path\\\\\"]}'\\) for i in t['tree'] if i['type']=='blob']\")",
+      "WebFetch(domain:api.github.com)",
+      "Bash(git rm *)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\ghosh\\\\Desktop\\\\atc-search\" | Where-Object { $_.Name -notin @\\('node_modules', 'worker'\\) } | Select-Object Name)"
     ]
   }
 }
