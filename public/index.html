@@ -126,7 +126,7 @@
   .tl-seg-time:hover { color: var(--amber); }
   .tl-role-select { background: var(--bg); border: 1px solid var(--line-2); color: var(--ink); font-family: inherit; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; padding: 3px 4px; outline: none; transition: border-color 0.15s; width: 100%; }
   .tl-role-select:focus { border-color: #d4a0ff; }
-  .tl-text-input { background: var(--bg); border: 1px solid var(--line-2); color: var(--ink); font-family: inherit; font-size: 13px; padding: 4px 8px; outline: none; width: 100%; transition: border-color 0.15s; }
+  .tl-text-input { background: var(--bg); border: 1px solid var(--line-2); color: var(--ink); font-family: inherit; font-size: 13px; padding: 4px 8px; outline: none; width: 100%; transition: border-color 0.15s; resize: vertical; min-height: 28px; box-sizing: border-box; display: block; line-height: 1.4; field-sizing: content; overflow-y: hidden; }
   .tl-text-input:focus { border-color: #d4a0ff; box-shadow: 0 0 0 1px rgba(212,160,255,0.25); }
   .tl-del-btn { background: transparent; border: 1px solid var(--line-2); color: var(--ink-faint); font-size: 14px; cursor: pointer; width: 28px; height: 28px; padding: 0; transition: color 0.15s, border-color 0.15s; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .tl-del-btn:hover { color: var(--red); border-color: rgba(229,115,115,0.4); }
@@ -1662,7 +1662,7 @@ function renderTlEditor(d) {
         <option value="pilot"${s.role === 'pilot' ? ' selected' : ''}>PILOT</option>
         <option value="unknown"${s.role === 'unknown' || !s.role ? ' selected' : ''}>?</option>
       </select>
-      <input class="tl-text-input" type="text" data-tlfield="text" data-tlrow="${i}" value="${escapeAttr(s.text)}">
+      <textarea class="tl-text-input" rows="1" data-tlfield="text" data-tlrow="${i}">${escapeHtml(s.text)}</textarea>
       <button class="tl-del-btn" data-tldel="${i}" data-tldocid="${escapeAttr(id)}" title="Remove segment">&times;</button>
     </div>
   `).join('');
@@ -2180,7 +2180,7 @@ document.addEventListener('click', e => {
         <option value="pilot">PILOT</option>
         <option value="unknown" selected>?</option>
       </select>
-      <input class="tl-text-input" type="text" data-tlfield="text" data-tlrow="${newIdx}" value="">
+      <textarea class="tl-text-input" rows="1" data-tlfield="text" data-tlrow="${newIdx}"></textarea>
       <button class="tl-del-btn" data-tldel="${newIdx}" data-tldocid="${escapeAttr(id)}" title="Remove segment">&times;</button>
     `;
     container.appendChild(newRow);
