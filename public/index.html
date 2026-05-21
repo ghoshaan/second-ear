@@ -1687,7 +1687,7 @@ function renderTlEditor(d) {
 
 // ====================== Diff Logic ======================
 
-const normWord = w => w.replace(/[.,!?;:()\[\]{}"']/g, '');
+const normWord = w => w.replace(/[.,!?;:()\[\]{}<>"']/g, '');
 function lcsWords(a, b) {
   const m = a.length, n = b.length;
   if (m * n > 60000) return null;
