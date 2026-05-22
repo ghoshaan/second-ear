@@ -236,6 +236,7 @@
   .selection-bar.visible { display: flex; }
   .selection-bar-count { font-size: 13px; color: var(--amber); text-transform: uppercase; letter-spacing: 0.14em; }
   .selection-bar-count b { color: var(--amber); font-weight: 700; }
+  .selection-bar-stats { font-size: 13px; text-transform: uppercase; letter-spacing: 0.14em; display: flex; align-items: center; }
   .selection-bar-actions { display: flex; gap: 10px; }
   .sel-btn {
     background: transparent; border: 1px solid var(--line-2); color: var(--ink-dim);
@@ -267,14 +268,23 @@
   .paste-btn { width: 66px; min-height: 44px; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink-dim); font-size: 11px; font-family: inherit; cursor: pointer; transition: all 0.15s; line-height: 1.3; flex-shrink: 0; align-self: stretch; }
   .paste-btn:hover { border-color: #4095ff; color: #4095ff; background: rgba(64,149,255,0.08); }
   .rating-btn { width: 66px; min-height: 34px; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink-dim); font-size: 11px; font-family: inherit; cursor: pointer; transition: all 0.15s; line-height: 1.3; }
-  .reject-btn:hover { border-color: #c0392b; color: #c0392b; }
-  .reject-btn.active { background: rgba(192,57,43,0.12); border-color: #c0392b; color: #c0392b; }
-  .major-btn:hover { border-color: #e67e22; color: #e67e22; }
-  .major-btn.active { background: rgba(230,126,34,0.12); border-color: #e67e22; color: #e67e22; }
-  .minor-btn:hover { border-color: var(--amber); color: var(--amber); }
-  .minor-btn.active { background: rgba(255,179,71,0.12); border-color: var(--amber); color: var(--amber); }
-  .good-btn:hover { border-color: var(--green); color: var(--green); }
-  .good-btn.active { background: rgba(102,187,106,0.12); border-color: var(--green); color: var(--green); }
+  .reject-btn { border-color: hsl(6, 55%, 46%); color: hsl(6, 55%, 46%); }
+  .reject-btn:hover { border-color: hsl(6, 85%, 46%); color: hsl(6, 85%, 46%); }
+  .reject-btn.active { background: hsla(6, 85%, 46%, 0.12); border-color: hsl(6, 85%, 46%); color: hsl(6, 85%, 46%); }
+  .major-btn { border-color: hsl(28, 55%, 52%); color: hsl(28, 55%, 52%); }
+  .major-btn:hover { border-color: hsl(28, 85%, 52%); color: hsl(28, 85%, 52%); }
+  .major-btn.active { background: hsla(28, 85%, 52%, 0.12); border-color: hsl(28, 85%, 52%); color: hsl(28, 85%, 52%); }
+  .minor-btn { border-color: hsl(35, 55%, 64%); color: hsl(35, 55%, 64%); }
+  .minor-btn:hover { border-color: hsl(35, 85%, 64%); color: hsl(35, 85%, 64%); }
+  .minor-btn.active { background: hsla(35, 85%, 64%, 0.12); border-color: hsl(35, 85%, 64%); color: hsl(35, 85%, 64%); }
+  .good-btn { border-color: hsl(123, 55%, 57%); color: hsl(123, 55%, 57%); }
+  .good-btn:hover { border-color: hsl(123, 85%, 57%); color: hsl(123, 85%, 57%); }
+  .good-btn.active { background: hsla(123, 85%, 57%, 0.12); border-color: hsl(123, 85%, 57%); color: hsl(123, 85%, 57%); }
+  /* Reduce saturation of other buttons to 40% when one button is selected */
+  .result-rating-col:has(.active) .reject-btn:not(.active):not(:hover) { border-color: hsl(6, 40%, 46%); color: hsl(6, 40%, 46%); }
+  .result-rating-col:has(.active) .major-btn:not(.active):not(:hover) { border-color: hsl(28, 40%, 52%); color: hsl(28, 40%, 52%); }
+  .result-rating-col:has(.active) .minor-btn:not(.active):not(:hover) { border-color: hsl(35, 40%, 64%); color: hsl(35, 40%, 64%); }
+  .result-rating-col:has(.active) .good-btn:not(.active):not(:hover) { border-color: hsl(123, 40%, 57%); color: hsl(123, 40%, 57%); }
   .result.editing .segments, .result.editing .history-panel { display: none !important; }
   .comment-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .pasted-img-wrap { position: relative; width: 120px; height: 80px; border: 1px solid var(--line-2); background: var(--bg); }
@@ -576,7 +586,10 @@
     <div class="pagination" id="pagination"></div>
 
     <div class="selection-bar" id="selection-bar">
-      <span class="selection-bar-count"><b id="sel-count">0</b> selected</span>
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <span class="selection-bar-count"><b id="sel-count">0</b> selected</span>
+        <span id="sel-stats" class="selection-bar-stats"></span>
+      </div>
       <div class="selection-bar-actions">
         <button class="sel-btn" id="sel-clear">clear</button>
         <button class="sel-btn primary" id="sel-export-drive">save</button>
@@ -2342,11 +2355,11 @@ document.addEventListener('click', e => {
       if (!selection.has(id)) {
         selection.add(id);
         saveSelection();
-        updateSelectionBar();
         const cb = document.querySelector(`.select-cb[data-sel="${CSS.escape(id)}"]`);
         if (cb) cb.checked = true;
       }
     }
+    updateSelectionBar();
     saveMajor();
     const article = document.querySelector(`article[data-docid="${CSS.escape(id)}"]`);
     if (article) {
@@ -3134,6 +3147,41 @@ function saveSelection() { saveAnnotation('selection', [...selection]); }
 function updateSelectionBar() {
   const bar = $('selection-bar');
   $('sel-count').textContent = selection.size;
+
+  let rejectCount = 0;
+  let majorCount = 0;
+  let minorCount = 0;
+  let goodCount = 0;
+
+  for (const id of selection) {
+    const rating = ratingMap.get(id);
+    if (rating === 'reject') rejectCount++;
+    else if (rating === 'major') majorCount++;
+    else if (rating === 'minor') minorCount++;
+    else if (rating === 'good') goodCount++;
+  }
+
+  const statsParts = [];
+  if (rejectCount > 0) {
+    statsParts.push(`<span style="color: hsl(6, 85%, 46%); font-weight: 700;">${rejectCount} reject</span>`);
+  }
+  if (majorCount > 0) {
+    statsParts.push(`<span style="color: hsl(28, 85%, 52%); font-weight: 700;">${majorCount} major</span>`);
+  }
+  if (minorCount > 0) {
+    statsParts.push(`<span style="color: hsl(35, 85%, 64%); font-weight: 700;">${minorCount} minor</span>`);
+  }
+  if (goodCount > 0) {
+    statsParts.push(`<span style="color: hsl(123, 85%, 57%); font-weight: 700;">${goodCount} good</span>`);
+  }
+
+  const statsEl = $('sel-stats');
+  if (statsParts.length > 0) {
+    statsEl.innerHTML = '<span style="color: var(--ink-faint); margin: 0 6px;">·</span>' + statsParts.join('<span style="color: var(--ink-faint); margin: 0 6px;">·</span>');
+  } else {
+    statsEl.innerHTML = '';
+  }
+
   bar.classList.toggle('visible', selection.size > 0);
 }
 
