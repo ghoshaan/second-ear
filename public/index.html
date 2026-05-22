@@ -1980,10 +1980,14 @@ function renderText(s) {
 // Render comment text for PDF export: escape HTML, swap "->" / "-->" for a sized arrow glyph, preserve newlines
 function renderCommentText(s) {
   const ARROW = `<span style="font-size:14px;">&#10230;</span>`;
-  return escapeHtml(s)
+  let escaped = escapeHtml(s)
     .replace(/--&gt;/g, ARROW)
-    .replace(/-&gt;/g, ARROW)
-    .replace(/\n/g, '<br>');
+    .replace(/-&gt;/g, ARROW);
+    
+  const urlRegex = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g;
+  escaped = escaped.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener" style="color:#0055aa;text-decoration:underline;">$1</a>');
+  
+  return escaped.replace(/\n/g, '<br>');
 }
 
 // ====================== Wire up ======================
