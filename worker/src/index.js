@@ -1,6 +1,6 @@
 const SCOPE = 'https://www.googleapis.com/auth/drive';
 const GH_OWNER = 'ghoshaan';
-const GH_REPO = 'lazy-detective';
+const GH_REPO = 'second-ear';
 const DIRECTORY_PATH = 'public/directory.json';
 
 export default {
