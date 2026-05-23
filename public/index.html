@@ -229,11 +229,10 @@
   .selection-bar {
     position: fixed; bottom: 0; left: 0; right: 0;
     background: var(--panel); border-top: 1px solid var(--amber);
-    padding: 12px 32px; display: none;
+    padding: 12px 32px; display: flex;
     align-items: center; justify-content: space-between; gap: 16px;
     z-index: 20; box-shadow: 0 -8px 24px rgba(0,0,0,0.4);
   }
-  .selection-bar.visible { display: flex; }
   .selection-bar-count { font-size: 13px; color: var(--amber); text-transform: uppercase; letter-spacing: 0.14em; }
   .selection-bar-count b { color: var(--amber); font-weight: 700; }
   .selection-bar-stats { font-size: 13px; text-transform: uppercase; letter-spacing: 0.14em; display: flex; align-items: center; }
@@ -420,6 +419,64 @@
   .drive-toast.visible { opacity: 1; pointer-events: auto; }
   .drive-toast a { color: var(--amber); text-decoration: none; }
   .drive-toast a:hover { text-decoration: underline; }
+
+  /* Playback speed controls */
+  .audio-speed-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-dim);
+    margin-left: 16px;
+    user-select: none;
+  }
+  .audio-speed-btn {
+    background: var(--panel);
+    border: 1px solid var(--line-2);
+    color: var(--ink-dim);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 2px 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border-radius: 2px;
+    height: 24px;
+    line-height: 1;
+  }
+  .audio-speed-btn:hover {
+    color: var(--amber);
+    border-color: var(--amber);
+  }
+  .audio-speed-val {
+    color: var(--ink);
+    font-weight: 500;
+    min-width: 42px;
+    text-align: center;
+  }
+  .audio-speed-slider {
+    width: 70px;
+    height: 4px;
+    background: var(--line-2);
+    border-radius: 2px;
+    outline: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    margin: 0 4px;
+  }
+  .audio-speed-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--amber);
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  .audio-speed-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.25);
+  }
 </style>
 </head>
 <body>
@@ -586,11 +643,21 @@
     <div class="pagination" id="pagination"></div>
 
     <div class="selection-bar" id="selection-bar">
-      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <div id="selection-bar-info" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; transition: opacity 0.15s; opacity: 0; pointer-events: none;">
         <span class="selection-bar-count"><b id="sel-count">0</b> selected</span>
         <span id="sel-stats" class="selection-bar-stats"></span>
       </div>
-      <div class="selection-bar-actions">
+
+      <!-- Global playback speed control -->
+      <div class="global-speed-control" style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-dim); user-select: none; margin: 0 auto;">
+        <span>Playback Speed:</span>
+        <button class="audio-speed-btn speed-down" id="global-speed-down" title="Slower (Hotkey: [)">-</button>
+        <span class="audio-speed-val" id="global-speed-val" style="color: var(--ink); font-weight: 500; min-width: 42px; text-align: center;">1.00x</span>
+        <button class="audio-speed-btn speed-up" id="global-speed-up" title="Faster (Hotkey: ])">+</button>
+        <input type="range" class="audio-speed-slider" id="global-speed-slider" min="0.1" max="1.5" step="0.05" value="1.0" title="Drag to adjust speed (0.1x - 1.5x)">
+      </div>
+
+      <div class="selection-bar-actions" id="selection-bar-actions" style="display: flex; gap: 10px; transition: opacity 0.15s; opacity: 0; pointer-events: none;">
         <button class="sel-btn" id="sel-clear">clear</button>
         <button class="sel-btn primary" id="sel-export-drive">save</button>
       </div>
@@ -618,11 +685,70 @@ const statusR = $('status-r');
 const _audioPlayed = new WeakSet();
 const _audioSeeked = new WeakSet();
 results.addEventListener('seeking', e => { if (e.target.tagName === 'AUDIO') _audioSeeked.add(e.target); }, true);
+
+// Keep track of the global playback speed
+let globalPlaybackRate = 1.0;
+let activeAudio = null;
+
+// Helper to set the global speed and update all UI / audio components
+function setGlobalPlaybackRate(val) {
+  globalPlaybackRate = Math.max(0.1, Math.min(1.5, parseFloat(val.toFixed(2))));
+
+  // Update global slider
+  const slider = $('global-speed-slider');
+  if (slider) slider.value = globalPlaybackRate;
+
+  // Update global label
+  const valSpan = $('global-speed-val');
+  if (valSpan) valSpan.textContent = `${globalPlaybackRate.toFixed(2)}x`;
+
+  // Update all audio elements currently in the DOM
+  document.querySelectorAll('audio').forEach(audio => {
+    if (audio.playbackRate !== globalPlaybackRate) {
+      audio.playbackRate = globalPlaybackRate;
+    }
+  });
+}
+
+// Global Speed Bar Event Listeners
+const speedBar = $('selection-bar');
+if (speedBar) {
+  speedBar.addEventListener('input', e => {
+    if (e.target.id === 'global-speed-slider') {
+      setGlobalPlaybackRate(parseFloat(e.target.value));
+    }
+  });
+  speedBar.addEventListener('click', e => {
+    const btn = e.target.closest('.audio-speed-btn');
+    if (!btn) return;
+    const dir = btn.classList.contains('speed-up') ? 1 : -1;
+    setGlobalPlaybackRate(globalPlaybackRate + dir * 0.05);
+  });
+}
+
 results.addEventListener('play', e => {
   const a = e.target;
   if (a.tagName !== 'AUDIO') return;
+
+  activeAudio = a;
+
+  // Enforce global speed
+  if (a.playbackRate !== globalPlaybackRate) {
+    a.playbackRate = globalPlaybackRate;
+  }
+
   if (!_audioPlayed.has(a) && !_audioSeeked.has(a) && a.currentTime > 0.05) a.currentTime = 0;
   _audioPlayed.add(a);
+}, true);
+
+// Enforce global speed whenever the browser tries to reset it (e.g. on ratechange)
+results.addEventListener('ratechange', e => {
+  const a = e.target;
+  if (a.tagName !== 'AUDIO') return;
+
+  if (a.playbackRate !== globalPlaybackRate) {
+    a.playbackRate = globalPlaybackRate;
+  }
 }, true);
 
 let allDocs = [];
@@ -1985,7 +2111,28 @@ const _lbImg = document.getElementById('img-lightbox-img');
 function openLightbox(src) { _lbImg.src = src; _lb.classList.add('open'); }
 function closeLightbox() { _lb.classList.remove('open'); _lbImg.src = ''; }
 _lb.addEventListener('click', e => { if (e.target === _lb || e.target.id === 'img-lightbox-close') closeLightbox(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLightbox();
+
+  // Audio playback speed hotkeys:
+  // 1. Ignore if typing in input fields
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+    return;
+  }
+  // 2. Ignore if standard browser key modifiers are held (e.g. Ctrl + Zoom)
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+  // 3. Adjust global playback speed
+  if (e.key === '[' || e.key === ']' || e.key === 'r' || e.key === 'R') {
+    e.preventDefault();
+    if (e.key === '[' || e.key === ']') {
+      const dir = e.key === ']' ? 1 : -1;
+      setGlobalPlaybackRate(globalPlaybackRate + dir * 0.05);
+    } else {
+      setGlobalPlaybackRate(1.0);
+    }
+  }
+});
 function renderText(s) {
   const ARROW = `<span style="font-size:18px;">&#10230;</span>`;
   return escapeHtml(s).replace(/--&gt;/g, ARROW).replace(/-&gt;/g, ARROW);
@@ -3182,7 +3329,21 @@ function updateSelectionBar() {
     statsEl.innerHTML = '';
   }
 
-  bar.classList.toggle('visible', selection.size > 0);
+  const infoEl = $('selection-bar-info');
+  const actionsEl = $('selection-bar-actions');
+  if (infoEl && actionsEl) {
+    if (selection.size > 0) {
+      infoEl.style.opacity = '1';
+      infoEl.style.pointerEvents = 'auto';
+      actionsEl.style.opacity = '1';
+      actionsEl.style.pointerEvents = 'auto';
+    } else {
+      infoEl.style.opacity = '0';
+      infoEl.style.pointerEvents = 'none';
+      actionsEl.style.opacity = '0';
+      actionsEl.style.pointerEvents = 'none';
+    }
+  }
 }
 
 // Audit directory inline lookup — searches Google Drive via worker
