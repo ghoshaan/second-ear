@@ -40,7 +40,7 @@ export default {
         return jsonResponse({ error: 'No file provided' }, 400, corsHeaders);
       }
 
-      const accessToken = await refreshAccessToken(
+      const accessToken = await getUserAccessToken(
         env.GOOGLE_CLIENT_ID,
         env.GOOGLE_CLIENT_SECRET,
         env.GOOGLE_REFRESH_TOKEN
@@ -79,20 +79,20 @@ function jsonResponse(data, status, extraHeaders = {}) {
   });
 }
 
-async function refreshAccessToken(clientId, clientSecret, refreshToken) {
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+async function getUserAccessToken(clientId, clientSecret, refreshToken) {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: clientId,
       client_secret: clientSecret,
       refresh_token: refreshToken,
-      grant_type: 'refresh_token',
+      grant_type: "refresh_token",
     }),
   });
 
   if (!res.ok) {
-    throw new Error(`Failed to refresh access token: ${await res.text()}`);
+    throw new Error(`Failed to refresh user access token: ${await res.text()}`);
   }
 
   const data = await res.json();
@@ -213,7 +213,7 @@ async function handleDriveSearch(request, env, url, corsHeaders) {
   if (!q) return jsonResponse({ files: [] }, 200, corsHeaders);
 
   try {
-    const accessToken = await refreshAccessToken(
+    const accessToken = await getUserAccessToken(
       env.GOOGLE_CLIENT_ID,
       env.GOOGLE_CLIENT_SECRET,
       env.GOOGLE_REFRESH_TOKEN

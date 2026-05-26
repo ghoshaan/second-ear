@@ -6,8 +6,8 @@ workers_dev = true
 
 # Secrets are set via: wrangler secret put <NAME>
 # Required secrets:
-#   GOOGLE_CLIENT_ID     — OAuth2 Client ID
-#   GOOGLE_CLIENT_SECRET — OAuth2 Client Secret
-#   GOOGLE_REFRESH_TOKEN — OAuth2 Refresh Token
+#   GOOGLE_CLIENT_ID     — Google OAuth 2.0 Client ID
+#   GOOGLE_CLIENT_SECRET — Google OAuth 2.0 Client Secret
+#   GOOGLE_REFRESH_TOKEN — Google OAuth 2.0 Refresh Token
 #   FOLDER_ID            — Google Drive folder ID from the share URL
 #   GH_TOKEN             — GitHub personal access token (repo scope) for updating directory.json
