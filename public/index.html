@@ -1789,10 +1789,24 @@ function renderDoc(d) {
   `;
 }
 
+// Backfill spId from original segments (matched by start time) for legacy TL edits
+// that were saved before spId tracking was added.
+function backfillSpId(tlSegs, origSegs) {
+  if (!origSegs || !origSegs.length) return tlSegs;
+  // Build a lookup: start-ms -> spId from originals
+  const origById = new Map();
+  origSegs.forEach(s => { if (s.spId) origById.set(Math.round(s.start), s.spId); });
+  return tlSegs.map(s => {
+    if (s.spId) return s; // already set, keep as-is
+    const inherited = origById.get(Math.round(s.start));
+    return inherited ? { ...s, spId: inherited } : s;
+  });
+}
+
 function renderTlEditor(d) {
   const id = String(d.id);
   const tlEdit = tlEditsMap.get(id);
-  const segs = tlEdit ? tlEdit.segments : (d.segments || []);
+  const segs = tlEdit ? backfillSpId(tlEdit.segments, d.segments) : (d.segments || []);
 
   const rowsHtml = segs.map((s, i) => {
     const curSpId = s.spId || '';
@@ -2112,7 +2126,7 @@ function renderHistory(d) {
     const tlTranscript = tlEdit.segments.map(s => s.text).join(' ');
     const pct = wordDiff(labelerTranscript, tlTranscript).pct;
     const pctHtml = pct > 0 ? ` · <span style="color:var(--red);opacity:0.75">${pct}% changed</span>` : '';
-    const segs = renderIndexedSegDiff(d.segments, tlEdit.segments);
+    const segs = renderIndexedSegDiff(d.segments, backfillSpId(tlEdit.segments, d.segments));
     return `<div class="history-panel open" id="hp-${escapeAttr(id)}"><div class="version-block prior"><div class="version-block-header"><span class="version-block-glyph">⟲</span><span class="version-block-desc"><span class="tl-diff-label" style="display:inline;">labeler &#x2192; TL final</span>${pctHtml}</span></div>${segs}</div></div>`;
   }
 
@@ -2123,7 +2137,7 @@ function renderHistory(d) {
     const finalTranscript = tlEdit.segments.map(s => s.text).join(' ');
     const pct = wordDiff(initial.transcript, finalTranscript).pct;
     const pctHtml = pct > 0 ? ` · <span style="color:var(--red);opacity:0.75">${pct}% changed</span>` : '';
-    const segs = renderIndexedSegDiff(initial.segments, tlEdit.segments);
+    const segs = renderIndexedSegDiff(initial.segments, backfillSpId(tlEdit.segments, d.segments));
     return `<div class="history-panel open" id="hp-${escapeAttr(id)}"><div class="version-block prior"><div class="version-block-header"><span class="version-block-date">${escapeHtml(initial.snapshotDate || '—')}</span><span class="version-block-glyph">⟲</span><span class="version-block-desc"><span class="tl-diff-label" style="display:inline;">labeler &#x2192; TL final</span>${pctHtml}</span></div>${segs}</div></div>`;
   }
 
