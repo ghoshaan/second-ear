@@ -121,7 +121,7 @@
   .tl-editor { display: none; margin-top: 10px; border: 1px solid rgba(212,160,255,0.25); background: rgba(212,160,255,0.03); padding: 12px 14px; }
   .tl-editor.open { display: block; }
   .tl-editor-header { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: #d4a0ff; margin-bottom: 10px; opacity: 0.8; }
-  .tl-seg-row { display: grid; grid-template-columns: 56px 72px 1fr 28px; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .tl-seg-row { display: grid; grid-template-columns: 56px 44px 72px 1fr 28px; gap: 8px; align-items: center; margin-bottom: 6px; }
   .tl-seg-time { font-size: 12px; color: var(--ink-faint); font-variant-numeric: tabular-nums; cursor: pointer; }
   .tl-seg-time:hover { color: var(--amber); }
   .tl-role-select { background: var(--bg); border: 1px solid var(--line-2); color: var(--ink); font-family: inherit; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; padding: 3px 4px; outline: none; transition: border-color 0.15s; width: 100%; }
@@ -1794,9 +1794,18 @@ function renderTlEditor(d) {
   const tlEdit = tlEditsMap.get(id);
   const segs = tlEdit ? tlEdit.segments : (d.segments || []);
 
-  const rowsHtml = segs.map((s, i) => `
+  const rowsHtml = segs.map((s, i) => {
+    const curSpId = s.spId || '';
+    return `
     <div class="tl-seg-row" data-tlrow="${i}" data-tlstart="${s.start}" data-tlend="${s.end}">
       <span class="tl-seg-time">${formatMs(s.start)}</span>
+      <select class="tl-role-select" data-tlfield="spid" data-tlrow="${i}" title="Speaker number">
+        <option value=""${!curSpId ? ' selected' : ''}>—</option>
+        <option value="S1"${curSpId === 'S1' ? ' selected' : ''}>S1</option>
+        <option value="S2"${curSpId === 'S2' ? ' selected' : ''}>S2</option>
+        <option value="S3"${curSpId === 'S3' ? ' selected' : ''}>S3</option>
+        <option value="S4"${curSpId === 'S4' ? ' selected' : ''}>S4</option>
+      </select>
       <select class="tl-role-select" data-tlfield="role" data-tlrow="${i}">
         <option value="atc"${s.role === 'atc' ? ' selected' : ''}>ATC</option>
         <option value="pilot"${s.role === 'pilot' ? ' selected' : ''}>PILOT</option>
@@ -1805,7 +1814,8 @@ function renderTlEditor(d) {
       <textarea class="tl-text-input" rows="1" data-tlfield="text" data-tlrow="${i}">${escapeHtml(s.text)}</textarea>
       <button class="tl-del-btn" data-tldel="${i}" data-tldocid="${escapeAttr(id)}" title="Remove segment">&times;</button>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   const revertBtn = tlEdit
     ? `<button class="tl-revert-btn" data-tlrevert="${escapeAttr(id)}">Revert</button>`
@@ -2026,9 +2036,20 @@ function renderVersionSegs(segments, currentSegments) {
     if (cur) {
       const textHtml = renderAlignedDiff(alignedWordDiff(s.text, cur.text));
       const oldRole = s.role || 'unknown', newRole = cur.role || 'unknown';
-      const roleHtml = oldRole !== newRole
-        ? `<span class="seg-role">${s.spId ? `<b style="opacity:0.5;margin-right:4px;">${s.spId}</b>` : ''}<mark class="diff-del">${escapeHtml(s.role)}</mark><mark class="diff-add">${escapeHtml(cur.role)}</mark></span>`
-        : `<span class="seg-role ${oldRole}">${s.spId ? `<b style="opacity:0.5;margin-right:4px;">${s.spId}</b>` : ''}${escapeHtml(s.role)}</span>`;
+      const oldSpId = s.spId || '', newSpId = cur.spId || '';
+      const roleChanged = oldRole !== newRole, spIdChanged = oldSpId !== newSpId;
+      let roleHtml;
+      if (roleChanged || spIdChanged) {
+        const spIdPart = (spIdChanged)
+          ? `${oldSpId ? `<mark class="diff-del"><b style="opacity:0.5;margin-right:4px;">${oldSpId}</b></mark>` : ''}<mark class="diff-add"><b style="opacity:0.5;margin-right:4px;">${newSpId || '—'}</b></mark>`
+          : (newSpId ? `<b style="opacity:0.5;margin-right:4px;">${newSpId}</b>` : '');
+        const rolePart = roleChanged
+          ? `<mark class="diff-del">${escapeHtml(s.role)}</mark><mark class="diff-add">${escapeHtml(cur.role)}</mark>`
+          : escapeHtml(cur.role);
+        roleHtml = `<span class="seg-role">${spIdPart}${rolePart}</span>`;
+      } else {
+        roleHtml = `<span class="seg-role ${oldRole}">${newSpId ? `<b style="opacity:0.5;margin-right:4px;">${newSpId}</b>` : ''}${escapeHtml(cur.role)}</span>`;
+      }
       const timeHtml = Math.round(s.start) !== Math.round(cur.start)
         ? `<span class="time-diff"><mark class="diff-del">${formatMs(s.start)}</mark><mark class="diff-add">${formatMs(cur.start)}</mark></span>`
         : formatMs(s.start);
@@ -2055,9 +2076,20 @@ function renderIndexedSegDiff(oldSegs, newSegs) {
     if (s && t) {
       const textHtml = renderAlignedDiff(alignedWordDiff(s.text, t.text));
       const oldRole = s.role || 'unknown', newRole = t.role || 'unknown';
-      const roleHtml = oldRole !== newRole
-        ? `<span class="seg-role">${s.spId ? `<b style="opacity:0.5;margin-right:4px;">${s.spId}</b>` : ''}<mark class="diff-del">${escapeHtml(s.role)}</mark><mark class="diff-add">${escapeHtml(t.role)}</mark></span>`
-        : `<span class="seg-role ${oldRole}">${t.spId ? `<b style="opacity:0.5;margin-right:4px;">${t.spId}</b>` : ''}${escapeHtml(t.role)}</span>`;
+      const oldSpId = s.spId || '', newSpId = t.spId || '';
+      const roleChanged = oldRole !== newRole, spIdChanged = oldSpId !== newSpId;
+      let roleHtml;
+      if (roleChanged || spIdChanged) {
+        const spIdPart = (spIdChanged)
+          ? `${oldSpId ? `<mark class="diff-del"><b style="opacity:0.5;margin-right:4px;">${oldSpId}</b></mark>` : ''}<mark class="diff-add"><b style="opacity:0.5;margin-right:4px;">${newSpId || '—'}</b></mark>`
+          : (newSpId ? `<b style="opacity:0.5;margin-right:4px;">${newSpId}</b>` : '');
+        const rolePart = roleChanged
+          ? `<mark class="diff-del">${escapeHtml(s.role)}</mark><mark class="diff-add">${escapeHtml(t.role)}</mark>`
+          : escapeHtml(t.role);
+        roleHtml = `<span class="seg-role">${spIdPart}${rolePart}</span>`;
+      } else {
+        roleHtml = `<span class="seg-role ${oldRole}">${newSpId ? `<b style="opacity:0.5;margin-right:4px;">${newSpId}</b>` : ''}${escapeHtml(t.role)}</span>`;
+      }
       parts.push(`<div class="seg"><span class="seg-time" data-start-ms="${t.start}">${formatMs(t.start)}</span>${roleHtml}<span class="seg-text">${textHtml}</span></div>`);
     } else if (s) {
       parts.push(`<div class="seg seg-removed"><span class="seg-time" data-start-ms="${s.start}">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${s.spId ? `<b style="opacity:0.5;margin-right:4px;">${s.spId}</b>` : ''}${escapeHtml(s.role || '?')}</span><span class="seg-text"><mark class="diff-del">${renderText(s.text)}</mark></span></div>`);
@@ -2340,6 +2372,13 @@ document.addEventListener('click', e => {
     newRow.dataset.tlend = lastEnd;
     newRow.innerHTML = `
       <span class="tl-seg-time">${formatMs(lastStart)}</span>
+      <select class="tl-role-select" data-tlfield="spid" data-tlrow="${newIdx}" title="Speaker number">
+        <option value="" selected>—</option>
+        <option value="S1">S1</option>
+        <option value="S2">S2</option>
+        <option value="S3">S3</option>
+        <option value="S4">S4</option>
+      </select>
       <select class="tl-role-select" data-tlfield="role" data-tlrow="${newIdx}">
         <option value="atc">ATC</option>
         <option value="pilot">PILOT</option>
@@ -2365,9 +2404,12 @@ document.addEventListener('click', e => {
     const newSegs = [];
     rows.forEach(row => {
       const roleEl = row.querySelector('[data-tlfield="role"]');
+      const spidEl = row.querySelector('[data-tlfield="spid"]');
       const textEl = row.querySelector('[data-tlfield="text"]');
+      const spIdVal = spidEl ? spidEl.value : '';
       newSegs.push({
         role: roleEl ? roleEl.value : 'unknown',
+        spId: spIdVal || undefined,
         start: Number(row.dataset.tlstart || 0),
         end: Number(row.dataset.tlend || 0),
         text: textEl ? textEl.value.trim() : ''
