@@ -2434,7 +2434,8 @@ document.addEventListener('click', e => {
         text: textEl ? textEl.value.trim() : ''
       });
     });
-    tlEditsMap.set(id, { segments: newSegs, editedAt: new Date().toISOString() });
+    const originalTranscript = (doc.segments || []).map(s => s.text).join(' ');
+    tlEditsMap.set(id, { segments: newSegs, editedAt: new Date().toISOString(), key: doc.key || doc.id, originalTranscript });
     saveTlEdits();
     if (!selection.has(id)) {
       selection.add(id);
@@ -2720,8 +2721,10 @@ function downloadTlEditsTxt() {
   });
   for (const [id, tlEdit] of sorted) {
     const d = allDocs.find(doc => String(doc.id) === id);
-    const keyLabel = d ? (d.key || d.id) : id;
-    const before = d ? (d.segments || []).map(s => s.text).join(' ') : '(original not loaded)';
+    const keyLabel = d ? (d.key || d.id) : (tlEdit.key || id);
+    const before = d
+      ? (d.segments || []).map(s => s.text).join(' ')
+      : (tlEdit.originalTranscript || '(original not loaded)');
     const after  = (tlEdit.segments || []).map(s => s.text).join(' ');
     lines.push(`=== ${keyLabel} ===`);
     lines.push(`BEFORE: ${before}`);
