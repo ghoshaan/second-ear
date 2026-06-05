@@ -277,14 +277,14 @@
   .minor-btn { border-color: hsl(35, 55%, 64%); color: hsl(35, 55%, 64%); }
   .minor-btn:hover { border-color: hsl(35, 85%, 64%); color: hsl(35, 85%, 64%); }
   .minor-btn.active { background: hsla(35, 85%, 64%, 0.12); border-color: hsl(35, 85%, 64%); color: hsl(35, 85%, 64%); }
-  .good-btn { border-color: hsl(145, 55%, 48%); color: hsl(145, 55%, 48%); }
-  .good-btn:hover { border-color: hsl(145, 85%, 48%); color: hsl(145, 85%, 48%); }
-  .good-btn.active { background: hsla(145, 85%, 48%, 0.12); border-color: hsl(145, 85%, 48%); color: hsl(145, 85%, 48%); }
+  .good-btn { border-color: var(--green); color: var(--green); }
+  .good-btn:hover { border-color: #81c784; color: #81c784; }
+  .good-btn.active { background: rgba(102,187,106,0.12); border-color: var(--green); color: var(--green); }
   /* Reduce saturation of other buttons to 40% when one button is selected */
   .result-rating-col:has(.active) .reject-btn:not(.active):not(:hover) { border-color: hsl(6, 40%, 46%); color: hsl(6, 40%, 46%); }
   .result-rating-col:has(.active) .major-btn:not(.active):not(:hover) { border-color: hsl(28, 40%, 52%); color: hsl(28, 40%, 52%); }
   .result-rating-col:has(.active) .minor-btn:not(.active):not(:hover) { border-color: hsl(35, 40%, 64%); color: hsl(35, 40%, 64%); }
-  .result-rating-col:has(.active) .good-btn:not(.active):not(:hover) { border-color: hsl(145, 40%, 48%); color: hsl(145, 40%, 48%); }
+  .result-rating-col:has(.active) .good-btn:not(.active):not(:hover) { border-color: rgba(102,187,106,0.5); color: rgba(102,187,106,0.5); }
   .result.editing .segments, .result.editing .history-panel { display: none !important; }
   .comment-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .pasted-img-wrap { position: relative; width: 120px; height: 80px; border: 1px solid var(--line-2); background: var(--bg); }
@@ -3422,7 +3422,7 @@ function updateSelectionBar() {
     statsParts.push(`<span style="color: hsl(35, 85%, 64%); font-weight: 700;">${minorCount} minor</span>`);
   }
   if (goodCount > 0) {
-    statsParts.push(`<span style="color: hsl(145, 85%, 48%); font-weight: 700;">${goodCount} good</span>`);
+    statsParts.push(`<span style="color: var(--green); font-weight: 700;">${goodCount} good</span>`);
   }
 
   const statsEl = $('sel-stats');

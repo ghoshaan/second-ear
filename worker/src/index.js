@@ -80,22 +80,35 @@ function jsonResponse(data, status, extraHeaders = {}) {
 }
 
 async function getUserAccessToken(clientId, clientSecret, refreshToken) {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  if (!clientId)     throw new Error('Missing secret: GOOGLE_CLIENT_ID');
+  if (!clientSecret) throw new Error('Missing secret: GOOGLE_CLIENT_SECRET');
+  if (!refreshToken) throw new Error('Missing secret: GOOGLE_REFRESH_TOKEN');
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: clientId,
       client_secret: clientSecret,
       refresh_token: refreshToken,
-      grant_type: "refresh_token",
+      grant_type: 'refresh_token',
     }),
   });
 
+  const body = await res.text();
   if (!res.ok) {
-    throw new Error(`Failed to refresh user access token: ${await res.text()}`);
+    // Parse Google's error for a clearer message (e.g. "invalid_grant" means
+    // the refresh token has been revoked or the app is still in Testing mode).
+    let detail = body;
+    try {
+      const parsed = JSON.parse(body);
+      detail = parsed.error_description || parsed.error || body;
+    } catch {}
+    throw new Error(`Token refresh failed (${res.status}): ${detail}`);
   }
 
-  const data = await res.json();
+  const data = JSON.parse(body);
+  if (!data.access_token) throw new Error('Token response missing access_token');
   return data.access_token;
 }
 
@@ -139,7 +152,10 @@ async function uploadToDrive(accessToken, fileBuffer, filename, folderId, mimeTy
   );
 
   if (!res.ok) {
-    throw new Error(`Drive upload failed (${res.status}): ${await res.text()}`);
+    const errBody = await res.text();
+    // 401 means the access token was rejected by Drive (shouldn't happen
+    // since we refresh on every request, but log it clearly).
+    throw new Error(`Drive upload failed (${res.status}): ${errBody}`);
   }
 
   return res.json();
