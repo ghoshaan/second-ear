@@ -583,6 +583,7 @@
       <select id="sort-order" class="version-badge" style="height: auto;">
         <option value="diff" selected>Sort: % Change</option>
         <option value="key">Sort: Key</option>
+        <option value="activity">Sort: Last Activity</option>
       </select>
       <a class="meta-link" id="name-btn" style="cursor:pointer;"></a>
       <a class="meta-link" id="change-snapshots-btn" style="cursor:pointer;">Upload data</a>
@@ -1637,6 +1638,13 @@ function rerun(keepPage = false) {
       const scoreA = getScore(a);
       const scoreB = getScore(b);
       if (scoreA !== scoreB) return scoreB - scoreA;
+      return String(a.key || '').localeCompare(String(b.key || ''));
+    });
+  } else if (sort === 'activity') {
+    filteredDocs.sort((a, b) => {
+      const timeA = new Date(a.maxActivityAt || a.createdAt || 0).getTime();
+      const timeB = new Date(b.maxActivityAt || b.createdAt || 0).getTime();
+      if (timeA !== timeB) return timeB - timeA;
       return String(a.key || '').localeCompare(String(b.key || ''));
     });
   } else {

@@ -92,7 +92,7 @@ async function getUserAccessToken(clientId, clientSecret, refreshToken) {
       client_secret: clientSecret,
       refresh_token: refreshToken,
       grant_type: 'refresh_token',
-    }),
+    }).toString(),
   });
 
   const body = await res.text();
