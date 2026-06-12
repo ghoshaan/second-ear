@@ -1895,7 +1895,7 @@ function alignedWordDiff(oldText, newText) {
   const ow = (oldText || '').split(/\s+/).filter(Boolean);
   const nw = (newText || '').split(/\s+/).filter(Boolean);
   if (!ow.length && !nw.length) return [];
-  const on = ow.map(normWord), nn = nw.map(normWord);
+  const on = ow.map(w => normWord(w).toLowerCase()), nn = nw.map(w => normWord(w).toLowerCase());
   const dp = lcsWords(on, nn);
   const slots = [];
   if (!dp) {
@@ -2012,7 +2012,7 @@ function wordDiff(oldText, newText) {
   const ow = (oldText || '').split(/\s+/).filter(Boolean);
   const nw = (newText || '').split(/\s+/).filter(Boolean);
   if (!ow.length && !nw.length) return { pct: 0, hasPunctChange: false };
-  const on = ow.map(normWord), nn = nw.map(normWord);
+  const on = ow.map(w => normWord(w).toLowerCase()), nn = nw.map(w => normWord(w).toLowerCase());
   const dp = lcsWords(on, nn);
   if (!dp) return { pct: 100, hasPunctChange: oldText !== newText };
   const lcsLen = dp[on.length][nn.length];
