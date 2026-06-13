@@ -3033,7 +3033,13 @@ function exportRow(d) {
   }
   const docRatingVal = ratingMap.get(String(d.id));
   const ratingColors = { reject: '#c0392b', major: '#e67e22', minor: '#ffb347', good: '#66bb6a' };
-  const majorTag = docRatingVal ? `<span class="export-tag major" style="color:${ratingColors[docRatingVal] || ''}">${docRatingVal}</span>` : '';
+  const ratingBgColors = { reject: '#fde8e8', major: '#fdf2e8', minor: '#fff8e6', good: '#eaf7ec' };
+  const ratingBorders = { reject: '#f8b4b4', major: '#fcd9b1', minor: '#ffe3ab', good: '#b2e1bb' };
+  const headerStyle = docRatingVal && ratingBgColors[docRatingVal]
+    ? `background-color: ${ratingBgColors[docRatingVal]}; border: 1px solid ${ratingBorders[docRatingVal]}; padding: 8pt 10pt; border-radius: 4pt; margin-bottom: 8pt;`
+    : 'margin-bottom: 8pt;';
+
+  const majorTag = docRatingVal ? `<span class="export-tag major" style="color:${ratingColors[docRatingVal] || ''}; text-transform: uppercase;">${docRatingVal}</span>` : '';
   const tlTag = tlEdit ? `<span class="export-tag" style="color:#7a3fb0;font-weight:600;">TL edited</span>` : '';
 
   const segs = (finalSegments || []).map(s => `
@@ -3077,8 +3083,10 @@ function exportRow(d) {
     : `<div class="export-key">${escapeHtml(d.key || d.id || '')}</div>`;
 
   return `<div class="export-row">
-    ${keyEl}
-    <div class="export-tags">${majorTag}${tlTag}${review}${labeler}${reviewer}${facets}<span>${dur}</span>${pctTag}${punctTag}</div>
+    <div style="${headerStyle}">
+      ${keyEl}
+      <div class="export-tags" style="margin-bottom: 0;">${majorTag}${tlTag}${review}${labeler}${reviewer}${facets}<span>${dur}</span>${pctTag}${punctTag}</div>
+    </div>
     ${segsHtml}
     ${versionsHtml}
     ${commentHtml}
