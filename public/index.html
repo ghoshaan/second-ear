@@ -2939,7 +2939,7 @@ function buildExportHtml(docs, title, commonId, commonRole, tlName, batchName) {
 <title>${escapeHtml(title)}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Fraunces:opsz,wght@9..144,600&display=swap">
 <style>
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { margin: 0; padding: 0; }
   body { background: #fff; color: #000; font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif; font-size: 11pt; line-height: 1.5; }
   @page { size: letter landscape; margin: 0.45in; }
