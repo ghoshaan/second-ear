@@ -3032,9 +3032,9 @@ function exportRow(d) {
     punctTag = `<span class="export-tag">punctuation</span>`;
   }
   const docRatingVal = ratingMap.get(String(d.id));
-  const ratingColors = { reject: '#c0392b', major: '#e67e22', minor: '#ffb347', good: '#66bb6a' };
-  const ratingBgColors = { reject: '#fde8e8', major: '#fdf2e8', minor: '#fff8e6', good: '#eaf7ec' };
-  const ratingBorders = { reject: '#f8b4b4', major: '#fcd9b1', minor: '#ffe3ab', good: '#b2e1bb' };
+  const ratingColors = { reject: '#c62828', major: '#d84315', minor: '#d4ac0d', good: '#2e7d32' };
+  const ratingBgColors = { reject: '#ffebee', major: '#fbe9e7', minor: '#fcf3cf', good: '#edf7ed' };
+  const ratingBorders = { reject: '#ef9a9a', major: '#ffab91', minor: '#f7dc6f', good: '#c8e6c9' };
   const headerStyle = docRatingVal && ratingBgColors[docRatingVal]
     ? `background-color: ${ratingBgColors[docRatingVal]}; border: 1px solid ${ratingBorders[docRatingVal]}; padding: 8pt 10pt; border-radius: 4pt; margin-bottom: 8pt;`
     : 'margin-bottom: 8pt;';
