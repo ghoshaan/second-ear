@@ -581,9 +581,9 @@
     <div class="meta">
       <span><b id="m-docs">—</b> recordings</span>
       <select id="sort-order" class="version-badge" style="height: auto;">
-        <option value="diff" selected>Sort: % Change</option>
+        <option value="diff">Sort: % Change</option>
         <option value="key">Sort: Key</option>
-        <option value="activity">Sort: Last Activity</option>
+        <option value="activity" selected>Sort: Last Activity</option>
       </select>
       <a class="meta-link" id="name-btn" style="cursor:pointer;"></a>
       <a class="meta-link" id="change-snapshots-btn" style="cursor:pointer;">Upload data</a>
@@ -3267,7 +3267,7 @@ function buildShareUrl(sessionId) {
   if (reviewer) params.set('reviewer', reviewer);
   if (status) params.set('status', status);
   if (annotated) params.set('annotated', annotated);
-  if (sort && sort !== 'diff') params.set('sort', sort);
+  if (sort && sort !== 'activity') params.set('sort', sort);
   const str = params.toString();
   return `${location.origin}${location.pathname}${str ? '?' + str : ''}`;
 }
@@ -3283,7 +3283,7 @@ function restoreFiltersFromUrl(params) {
   $('filter-reviewer').value = params.get('reviewer') || '';
   $('filter-status').value = params.get('status') || '';
   $('filter-annotated').value = params.get('annotated') || '';
-  $('sort-order').value = params.get('sort') || 'diff';
+  $('sort-order').value = params.get('sort') || 'activity';
 }
 
 async function maybeLoadSharedSession() {
