@@ -1241,7 +1241,23 @@ async function processSnapshots(files) {
 
     const initial = collapsed[0];
     const diffResult = wordDiff(initial.transcript, primary.transcript);
-    processedRows.push({ ...primary, versions, snapshotStates, ...diffResult });
+
+    let hasRoleChange = false;
+    if (initial.segments && primary.segments) {
+      if (initial.segments.length !== primary.segments.length) {
+        hasRoleChange = true;
+      } else {
+        for (let i = 0; i < initial.segments.length; i++) {
+          if ((initial.segments[i].role || '') !== (primary.segments[i].role || '') || 
+              (initial.segments[i].spId || '') !== (primary.segments[i].spId || '')) {
+            hasRoleChange = true;
+            break;
+          }
+        }
+      }
+    }
+
+    processedRows.push({ ...primary, versions, snapshotStates, ...diffResult, hasRoleChange });
   }
 
   allDocs = processedRows;
@@ -1712,6 +1728,8 @@ function renderDoc(d) {
   const tlBadge = `<button class="tag tag-tl-edit${hasTlEdit ? ' has-edit' : ''}" data-tlbtn="${escapeAttr(String(d.id))}">${hasTlEdit ? 'Edit ✎' : 'Edit'}</button>`;
 
   const punctTag = d.hasPunctChange ? `<span class="tag" style="color:var(--ink-dim);border-color:var(--line-2);">punctuation</span>` : '';
+  const capTag = d.hasCapChange ? `<span class="tag" style="color:var(--ink-dim);border-color:var(--line-2);">capitalization</span>` : '';
+  const roleTag = d.hasRoleChange ? `<span class="tag" style="color:var(--ink-dim);border-color:var(--line-2);">role</span>` : '';
 
   const segs = (displayDoc.segments || []).map(s => `
     <div class="seg">
@@ -1784,6 +1802,9 @@ function renderDoc(d) {
         <div class="result-tags">
           ${reviewTag}
           <span class="tag-dur">${dur}</span>
+          ${punctTag}
+          ${capTag}
+          ${roleTag}
           <button class="clear-row-btn" data-clearid="${escapeAttr(String(d.id))}" title="Clear annotations for this row">✕ clear</button>
         </div>
       </header>
@@ -2007,19 +2028,19 @@ function renderAlignedDiff(slots) {
 
   return `<span class="diff-aligned">${result.join('')}</span>`;
 }
-
 function wordDiff(oldText, newText) {
   const ow = (oldText || '').split(/\s+/).filter(Boolean);
   const nw = (newText || '').split(/\s+/).filter(Boolean);
-  if (!ow.length && !nw.length) return { pct: 0, hasPunctChange: false };
+  if (!ow.length && !nw.length) return { pct: 0, hasPunctChange: false, hasCapChange: false };
   const on = ow.map(w => normWord(w).toLowerCase()), nn = nw.map(w => normWord(w).toLowerCase());
+  const hasPunctChange = oldText !== newText && ow.join(' ').toLowerCase() !== nw.join(' ').toLowerCase() && on.join(' ') === nn.join(' ');
+  const hasCapChange = oldText !== newText && ow.join(' ').toLowerCase() === nw.join(' ').toLowerCase() && ow.join(' ') !== nw.join(' ');
   const dp = lcsWords(on, nn);
-  if (!dp) return { pct: 100, hasPunctChange: oldText !== newText };
+  if (!dp) return { pct: 100, hasPunctChange, hasCapChange };
   const lcsLen = dp[on.length][nn.length];
   const maxLen = Math.max(on.length, nn.length);
   const pct = Math.round((1 - lcsLen / maxLen) * 100);
-  const hasPunctChange = oldText !== newText && on.join(' ') === nn.join(' ');
-  return { pct, hasPunctChange };
+  return { pct, hasPunctChange, hasCapChange };
 }
 
 function matchSegments(oldSegs, newSegs) {
@@ -3019,17 +3040,53 @@ function exportRow(d) {
   const hasVersions = !!(d.versions && d.versions.length);
   let pctTag = '';
   let punctTag = '';
+  let capTag = '';
+  let roleTag = '';
+  let hasRoleChange = false;
+
   if (hasVersions) {
-    const { pct, hasPunctChange } = wordDiff(d.versions[0].transcript, finalTranscript);
+    const { pct, hasPunctChange, hasCapChange } = wordDiff(d.versions[0].transcript, finalTranscript);
     if (pct > 0) pctTag = `<span>${pct}% changed</span>`;
     if (hasPunctChange) punctTag = `<span class="export-tag">punctuation</span>`;
+    if (hasCapChange) capTag = `<span class="export-tag">capitalization</span>`;
+    
+    const oldSegs = d.versions[0].segments;
+    if (oldSegs && finalSegments) {
+      if (oldSegs.length !== finalSegments.length) hasRoleChange = true;
+      else {
+        for (let i = 0; i < oldSegs.length; i++) {
+          if ((oldSegs[i].role || '') !== (finalSegments[i].role || '') || (oldSegs[i].spId || '') !== (finalSegments[i].spId || '')) {
+            hasRoleChange = true; break;
+          }
+        }
+      }
+    }
+    if (hasRoleChange) roleTag = `<span class="export-tag">role</span>`;
+
   } else if (tlEdit) {
     const labelerTranscript = (d.segments || []).map(s => s.text).join(' ');
-    const { pct, hasPunctChange } = wordDiff(labelerTranscript, finalTranscript);
+    const { pct, hasPunctChange, hasCapChange } = wordDiff(labelerTranscript, finalTranscript);
     if (pct > 0) pctTag = `<span>${pct}% changed</span>`;
     if (hasPunctChange) punctTag = `<span class="export-tag">punctuation</span>`;
-  } else if (d.hasPunctChange) {
-    punctTag = `<span class="export-tag">punctuation</span>`;
+    if (hasCapChange) capTag = `<span class="export-tag">capitalization</span>`;
+
+    const oldSegs = d.segments;
+    if (oldSegs && finalSegments) {
+      if (oldSegs.length !== finalSegments.length) hasRoleChange = true;
+      else {
+        for (let i = 0; i < oldSegs.length; i++) {
+          if ((oldSegs[i].role || '') !== (finalSegments[i].role || '') || (oldSegs[i].spId || '') !== (finalSegments[i].spId || '')) {
+            hasRoleChange = true; break;
+          }
+        }
+      }
+    }
+    if (hasRoleChange) roleTag = `<span class="export-tag">role</span>`;
+
+  } else {
+    if (d.hasPunctChange) punctTag = `<span class="export-tag">punctuation</span>`;
+    if (d.hasCapChange) capTag = `<span class="export-tag">capitalization</span>`;
+    if (d.hasRoleChange) roleTag = `<span class="export-tag">role</span>`;
   }
   const docRatingVal = ratingMap.get(String(d.id));
   const ratingColors = { reject: '#c62828', major: '#d84315', minor: '#d4ac0d', good: '#2e7d32' };
@@ -3085,7 +3142,7 @@ function exportRow(d) {
   return `<div class="export-row">
     <div style="${headerStyle}">
       ${keyEl}
-      <div class="export-tags" style="margin-bottom: 0;">${majorTag}${tlTag}${review}${labeler}${reviewer}${facets}<span>${dur}</span>${pctTag}${punctTag}</div>
+      <div class="export-tags" style="margin-bottom: 0;">${majorTag}${tlTag}${review}${labeler}${reviewer}${facets}<span>${dur}</span>${pctTag}${punctTag}${capTag}${roleTag}</div>
     </div>
     ${segsHtml}
     ${versionsHtml}
