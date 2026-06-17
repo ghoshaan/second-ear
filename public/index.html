@@ -1366,8 +1366,11 @@ async function loadFilesFromDb() {
 
 async function clearDb() {
   const db = await openDb();
-  const tx = db.transaction(FILES_STORE, 'readwrite');
+  const tx = db.transaction([FILES_STORE, COMMENTS_STORE, ANNOTATIONS_STORE], 'readwrite');
   tx.objectStore(FILES_STORE).clear();
+  tx.objectStore(COMMENTS_STORE).clear();
+  tx.objectStore(ANNOTATIONS_STORE).clear();
+  localStorage.clear();
   return new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = e => reject(e.target.error); });
 }
 
@@ -1465,8 +1468,7 @@ uploadForm.addEventListener('submit', async (e) => {
       }
     });
     $('start-fresh-btn').addEventListener('click', async () => {
-      try { await clearDb(); } catch (e) { console.warn('Could not clear IDB', e); }
-      panel.style.display = 'none';
+      await clearDbAndReload();
     });
   } catch (e) {
     console.warn('Could not check IndexedDB:', e);
@@ -1669,6 +1671,7 @@ function rerun(keepPage = false) {
 
   renderPage();
   syncFilterUrl();
+  updateSelectionBar();
 }
 
 function renderPage() {
@@ -2702,17 +2705,80 @@ document.addEventListener('click', e => {
   }
 });
 
+function isMismatchWithSelection(newId) {
+  if (selection.size === 0) return false;
+  const newDoc = allDocs.find(d => escapeAttr(String(d.id)) === newId || String(d.id) === newId);
+  if (!newDoc) return false;
+  
+  const newR = newDoc.reviewedBy || '';
+  const newL = newDoc.annotator || '';
+  
+  for (const id of selection) {
+    if (id === newId) continue;
+    const oldDoc = allDocs.find(d => escapeAttr(String(d.id)) === id || String(d.id) === id);
+    if (!oldDoc) continue;
+    
+    const oldR = oldDoc.reviewedBy || '';
+    const oldL = oldDoc.annotator || '';
+    
+    if (newR && oldR && newR !== oldR) return true;
+    if (newL && oldL && newL !== oldL) return true;
+    if (!newR && !newL && (oldR || oldL)) return true;
+    if (!oldR && !oldL && (newR || newL)) return true;
+  }
+  return false;
+}
+
+function hasMismatchWithShown() {
+  if (selection.size === 0 || filteredDocs.length === 0) return false;
+  const shownReviewers = new Set(filteredDocs.map(d => d.reviewedBy).filter(Boolean));
+  const shownLabelers = new Set(filteredDocs.map(d => d.annotator).filter(Boolean));
+  
+  return [...selection].some(id => {
+    const d = allDocs.find(doc => escapeAttr(String(doc.id)) === id || String(doc.id) === id);
+    if (!d) return false;
+    const r = d.reviewedBy;
+    const l = d.annotator;
+    if (!r && !l) return false;
+    
+    const sharesReviewer = r && shownReviewers.has(r);
+    const sharesLabeler = l && shownLabelers.has(l);
+    
+    return !(sharesReviewer || sharesLabeler);
+  });
+}
+
 results.addEventListener('change', e => {
   const cb = e.target.closest('.select-cb');
   if (!cb) return;
   const id = cb.dataset.sel;
-  if (cb.checked) selection.add(id); else selection.delete(id);
+  
+  if (cb.checked) {
+    if (isMismatchWithSelection(id)) {
+      if (confirm("Would you like to clear current selection?")) {
+        selection.clear();
+        document.querySelectorAll('.select-cb').forEach(el => {
+          if (el.dataset.sel !== id) el.checked = false;
+        });
+      }
+    }
+    selection.add(id);
+    cb.checked = true;
+  } else {
+    selection.delete(id);
+  }
   saveSelection();
   updateSelectionBar();
 });
 
 $('sel-all-cb').addEventListener('change', e => {
   if (e.target.checked) {
+    if (hasMismatchWithShown()) {
+      if (confirm("Would you like to clear current selection?")) {
+        selection.clear();
+        document.querySelectorAll('.select-cb:not(#sel-all-cb)').forEach(cb => cb.checked = false);
+      }
+    }
     filteredDocs.forEach(d => selection.add(String(d.id)));
     document.querySelectorAll('.select-cb:not(#sel-all-cb)').forEach(cb => cb.checked = true);
   } else {
@@ -3470,6 +3536,15 @@ function saveSelection() { saveAnnotation('selection', [...selection]); }
 function updateSelectionBar() {
   const bar = $('selection-bar');
   $('sel-count').textContent = selection.size;
+
+  const selAll = $('sel-all-cb');
+  if (selAll) {
+    if (filteredDocs.length > 0 && filteredDocs.every(d => selection.has(escapeAttr(String(d.id))) || selection.has(String(d.id)))) {
+      selAll.checked = true;
+    } else {
+      selAll.checked = false;
+    }
+  }
 
   let rejectCount = 0;
   let majorCount = 0;
