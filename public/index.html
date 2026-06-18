@@ -1892,11 +1892,38 @@ const normWord = w => w.replace(/[.,!?;:()\[\]{}<>"']/g, '');
 function lcsWords(a, b) {
   const m = a.length, n = b.length;
   if (m * n > 60000) return null;
-  const dp = Array.from({ length: m + 1 }, () => new Uint16Array(n + 1));
-  for (let i = 1; i <= m; i++)
-    for (let j = 1; j <= n; j++)
-      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
+  const dp = Array.from({ length: m + 1 }, () => new Int32Array(n + 1));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (a[i-1] === b[j-1]) {
+        dp[i][j] = Math.max(
+          dp[i-1][j-1] + (1000 - Math.abs((i-1) - (j-1))),
+          dp[i-1][j],
+          dp[i][j-1]
+        );
+      } else {
+        dp[i][j] = Math.max(dp[i-1][j], dp[i][j-1]);
+      }
+    }
+  }
   return dp;
+}
+
+function getLcsLen(dp, on, nn) {
+  let i = on.length, j = nn.length;
+  let lcsLen = 0;
+  while (i > 0 && j > 0) {
+    if (on[i-1] === nn[j-1] && dp[i][j] === dp[i-1][j-1] + (1000 - Math.abs((i-1) - (j-1)))) {
+      lcsLen++;
+      i--;
+      j--;
+    } else if (dp[i][j-1] >= dp[i-1][j]) {
+      j--;
+    } else {
+      i--;
+    }
+  }
+  return lcsLen;
 }
 
 function charDiff(a, b) {
@@ -1934,9 +1961,17 @@ function alignedWordDiff(oldText, newText) {
   let i = on.length, j = nn.length;
   const ops = [];
   while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && on[i-1] === nn[j-1]) { ops.push({ type: 'eq', oi: i-1, ni: j-1 }); i--; j--; }
-    else if (j > 0 && (i === 0 || dp[i][j-1] > dp[i-1][j])) { ops.push({ type: 'ins', ni: j-1 }); j--; }
-    else { ops.push({ type: 'del', oi: i-1 }); i--; }
+    if (i > 0 && j > 0 && on[i-1] === nn[j-1] && dp[i][j] === dp[i-1][j-1] + (1000 - Math.abs((i-1) - (j-1)))) {
+      ops.push({ type: 'eq', oi: i-1, ni: j-1 });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
+      ops.push({ type: 'ins', ni: j-1 });
+      j--;
+    } else {
+      ops.push({ type: 'del', oi: i-1 });
+      i--;
+    }
   }
   ops.reverse();
   let k = 0;
@@ -2040,7 +2075,7 @@ function wordDiff(oldText, newText) {
   const hasCapChange = oldText !== newText && ow.join(' ').toLowerCase() === nw.join(' ').toLowerCase() && ow.join(' ') !== nw.join(' ');
   const dp = lcsWords(on, nn);
   if (!dp) return { pct: 100, hasPunctChange, hasCapChange };
-  const lcsLen = dp[on.length][nn.length];
+  const lcsLen = getLcsLen(dp, on, nn);
   const maxLen = Math.max(on.length, nn.length);
   const pct = Math.round((1 - lcsLen / maxLen) * 100);
   return { pct, hasPunctChange, hasCapChange };
