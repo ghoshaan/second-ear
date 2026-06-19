@@ -8,7 +8,13 @@
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Fraunces:opsz,wght@9..144,300;9..144,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,600&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script>
+  (function() {
+    const saved = localStorage.getItem('font-preference') || 'inter';
+    document.documentElement.classList.add('font-' + saved);
+  })();
+</script>
 <style>
   :root {
     --bg:        #0b0e0c;
@@ -25,6 +31,13 @@
     --atc:       #ffb347;
     --hl-bg:     #3d2a07;
     --hl-fg:     #ffd084;
+    font-family: 'Inter', sans-serif;
+  }
+  :root.font-inter {
+    font-family: 'Inter', sans-serif;
+  }
+  :root.font-jetbrains {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
   }
 
   * { box-sizing: border-box; }
@@ -32,7 +45,7 @@
   body {
     background: var(--bg);
     color: var(--ink);
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: inherit;
     font-size: 16px;
     line-height: 1.55;
     min-height: 100vh;
@@ -141,7 +154,7 @@
   .tl-revert-btn:hover { border-color: var(--red); color: var(--red); }
   .tl-diff-label { font-size: 11px; color: #d4a0ff; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px; opacity: 0.8; }
   .copy-id {
-    font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px;
+    font-family: ui-monospace, monospace; font-size: 11px;
     color: var(--ink-dim); cursor: pointer; user-select: all;
     border: 1px solid var(--line-2); padding: 1px 6px;
     text-transform: none; letter-spacing: 0;
@@ -380,12 +393,12 @@
 
   /* PDF Export Styles */
   @page { size: landscape; margin: 0.45in; }
-  .export-body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif; color: #111; font-size: 10pt; line-height: 1.4; margin: 0; padding: 0; }
+  .export-body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif; color: #111; font-size: 10pt; line-height: 1.4; margin: 0; padding: 0; }
   .export-h1 { font-size: 15pt; margin: 0 0 3pt; font-weight: 600; font-family: 'Fraunces', serif; }
   .export-meta { font-size: 8.5pt; color: #666; margin-bottom: 12pt; padding-bottom: 7pt; border-bottom: 1px solid #ccc; text-transform: uppercase; letter-spacing: 0.1em; }
   .export-row { page-break-inside: avoid; break-inside: avoid; margin-bottom: 12pt; padding-bottom: 10pt; border-bottom: 1px solid #e0e0e0; }
   .export-row:last-child { border-bottom: none; }
-  .export-key { font-family: 'JetBrains Mono', monospace; font-size: 10.5pt; font-weight: 600; word-break: break-all; margin-bottom: 2pt; }
+  .export-key { font-family: ui-monospace, monospace; font-size: 10.5pt; font-weight: 600; word-break: break-all; margin-bottom: 2pt; }
   a.export-key { color: #0055aa; text-decoration: underline; display: block; }
   .export-tags { font-size: 8.5pt; color: #555; margin-bottom: 5pt; display: flex; gap: 10pt; flex-wrap: wrap; }
   .export-tag { display: inline-block; }
@@ -396,7 +409,7 @@
   .export-stats-major { color: #c0392b; font-weight: 600; }
   .export-segs { margin: 4pt 0; display: block; }
   .export-seg { display: grid; grid-template-columns: 40pt auto 1fr; gap: 4pt; align-items: start; margin-bottom: 1.5pt; }
-  .export-seg-time { color: #999; font-family: 'JetBrains Mono', monospace; font-size: 8.5pt; }
+  .export-seg-time { color: #999; font-family: ui-monospace, monospace; font-size: 8.5pt; }
   .export-seg-role { font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
   .export-seg-role.pilot { color: #2a7a3a; }
   .export-seg-role.atc { color: #b86b00; }
@@ -584,6 +597,10 @@
         <option value="diff">Sort: % Change</option>
         <option value="key">Sort: Key</option>
         <option value="activity" selected>Sort: Last Activity</option>
+      </select>
+      <select id="font-family-select" class="version-badge" style="height: auto;">
+        <option value="inter">Font: Inter</option>
+        <option value="jetbrains">Font: JetBrains Mono</option>
       </select>
       <a class="meta-link" id="name-btn" style="cursor:pointer;"></a>
       <a class="meta-link" id="change-snapshots-btn" style="cursor:pointer;">Upload data</a>
@@ -3069,18 +3086,20 @@ function buildExportHtml(docs, title, commonId, commonRole, tlName, batchName) {
 
   return `<!doctype html><html><head><meta charset="utf-8">
 <title>${escapeHtml(title)}</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Fraunces:opsz,wght@9..144,600&display=swap">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;700&display=swap">
 <style>
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { margin: 0; padding: 0; }
-  body { background: #fff; color: #000; font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif; font-size: 11pt; line-height: 1.5; }
+  body { background: #fff; color: #000; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif; font-size: 11pt; line-height: 1.5; }
   @page { size: letter landscape; margin: 0.45in; }
   .export-body { color: #000; font-size: 11pt; line-height: 1.5; margin: 0; padding: 0; }
   .export-h1 { font-size: 18pt; margin: 0 0 4pt; font-weight: 600; font-family: 'Fraunces', serif; }
   .export-meta { font-size: 10pt; color: #444; margin-bottom: 14pt; padding-bottom: 8pt; border-bottom: 1px solid #aaa; text-transform: uppercase; letter-spacing: 0.05em; }
   .export-row { page-break-inside: avoid; break-inside: avoid; margin-bottom: 16pt; padding-bottom: 12pt; border-bottom: 1px solid #ccc; }
   .export-row:last-child { border-bottom: none; }
-  .export-key { font-family: 'JetBrains Mono', monospace; font-size: 11.5pt; font-weight: 700; word-break: break-all; margin-bottom: 3pt; }
+  .export-key { font-family: ui-monospace, monospace; font-size: 11.5pt; font-weight: 700; word-break: break-all; margin-bottom: 3pt; }
   a.export-key { color: #004499; text-decoration: underline; display: block; }
   .export-tags { font-size: 10pt; color: #333; margin-bottom: 6pt; display: flex; gap: 12pt; flex-wrap: wrap; }
   .export-tag { display: inline-block; }
@@ -3091,7 +3110,7 @@ function buildExportHtml(docs, title, commonId, commonRole, tlName, batchName) {
   .export-stats-major { color: #a02010; font-weight: 700; }
   .export-segs { margin: 6pt 0; display: block; }
   .export-seg { display: grid; grid-template-columns: 45pt auto 1fr; gap: 6pt; align-items: start; margin-bottom: 2pt; }
-  .export-seg-time { color: #555; font-family: 'JetBrains Mono', monospace; font-size: 9.5pt; font-weight: 500; }
+  .export-seg-time { color: #555; font-family: ui-monospace, monospace; font-size: 9.5pt; font-weight: 500; }
   .export-seg-role { font-size: 10pt; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
   .export-seg-role.pilot { color: #1a5a2a; }
   .export-seg-role.atc { color: #985b00; }
@@ -3107,7 +3126,7 @@ function buildExportHtml(docs, title, commonId, commonRole, tlName, batchName) {
   .seg { display: grid; grid-template-columns: 45pt auto 1fr; gap: 6pt; align-items: start; margin-bottom: 2pt; }
   .seg.seg-removed { border-left: 2px solid #d32f2f; padding-left: 8px; opacity: 1; }
   .seg.seg-added   { border-left: 2px solid #388e3c; padding-left: 8px; opacity: 1; }
-  .seg-time { color: #555; font-family: 'JetBrains Mono', monospace; font-size: 9.5pt; font-weight: 500; }
+  .seg-time { color: #555; font-family: ui-monospace, monospace; font-size: 9.5pt; font-weight: 500; }
   .seg-role { font-size: 10pt; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
   .seg-role.pilot { color: #1a5a2a; }
   .seg-role.atc { color: #985b00; }
@@ -3688,6 +3707,19 @@ function updateSelectionBar() {
     if (!q) { el.innerHTML = ''; return; }
     el.innerHTML = '<div style="font-size:12px;color:var(--ink-faint);padding:8px 0;">Searching…</div>';
     dirTimer = setTimeout(() => renderDirResults(q), 400);
+  });
+}
+
+// Font Preference Selector
+const fontSelect = document.getElementById('font-family-select');
+if (fontSelect) {
+  const savedFont = localStorage.getItem('font-preference') || 'inter';
+  fontSelect.value = savedFont;
+  fontSelect.addEventListener('change', (e) => {
+    const val = e.target.value;
+    localStorage.setItem('font-preference', val);
+    document.documentElement.classList.remove('font-inter', 'font-jetbrains');
+    document.documentElement.classList.add('font-' + val);
   });
 }
 </script>

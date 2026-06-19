@@ -5,7 +5,14 @@
 <title>Audit Directory · second ear</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,600&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script>
+  (function() {
+    const saved = localStorage.getItem('font-preference') || 'inter';
+    document.documentElement.classList.add('font-' + saved);
+  })();
+</script>
 <style>
   :root {
     --bg: #0f0f0f;
@@ -14,9 +21,16 @@
     --ink: #e8e8e8;
     --ink-dim: #888;
     --amber: #ffb347;
+    font-family: 'Inter', sans-serif;
+  }
+  :root.font-inter {
+    font-family: 'Inter', sans-serif;
+  }
+  :root.font-jetbrains {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--ink); font-family: 'JetBrains Mono', monospace; font-size: 16px; min-height: 100vh; }
+  body { background: var(--bg); color: var(--ink); font-family: inherit; font-size: 16px; min-height: 100vh; }
 
   header { border-bottom: 1px solid var(--line); padding: 18px 28px; display: flex; align-items: baseline; gap: 16px; }
   .site-title { font-family: 'Fraunces', serif; font-weight: 300; font-size: 24px; cursor: pointer; }
@@ -26,6 +40,8 @@
   .toolbar { padding: 24px 28px 0; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
   .search { flex: 1; min-width: 220px; max-width: 480px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); font-family: inherit; font-size: 16px; padding: 10px 14px; outline: none; }
   .search:focus { border-color: var(--amber); }
+  .font-select { background: var(--panel); border: 1px solid var(--line); color: var(--ink); font-family: inherit; font-size: 16px; padding: 10px 14px; outline: none; cursor: pointer; }
+  .font-select:focus { border-color: var(--amber); }
   .search::placeholder { color: var(--ink-dim); }
 
   .meta { padding: 14px 28px 0; font-size: 14px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.1em; }
@@ -55,6 +71,10 @@
 
 <div class="toolbar">
   <input class="search" id="search" placeholder="Search by ID, date, or name…" autocomplete="off">
+  <select id="font-family-select" class="font-select">
+    <option value="inter">Font: Inter</option>
+    <option value="jetbrains">Font: JetBrains Mono</option>
+  </select>
 </div>
 
 <div class="meta" id="meta"></div>
@@ -205,6 +225,20 @@ function esc(s) {
 }
 
 document.getElementById('search').addEventListener('input', e => render(e.target.value));
+
+// Font Preference Selector
+const fontSelect = document.getElementById('font-family-select');
+if (fontSelect) {
+  const savedFont = localStorage.getItem('font-preference') || 'inter';
+  fontSelect.value = savedFont;
+  fontSelect.addEventListener('change', e => {
+    const val = e.target.value;
+    localStorage.setItem('font-preference', val);
+    document.documentElement.classList.remove('font-inter', 'font-jetbrains');
+    document.documentElement.classList.add('font-' + val);
+  });
+}
+
 load();
 </script>
 </body>
