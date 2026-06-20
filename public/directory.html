@@ -224,7 +224,11 @@ function esc(s) {
     .replace(/"/g, '&quot;');
 }
 
-document.getElementById('search').addEventListener('input', e => render(e.target.value));
+document.getElementById('search').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    render(e.target.value);
+  }
+});
 
 // Font Preference Selector
 const fontSelect = document.getElementById('font-family-select');

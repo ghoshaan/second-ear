@@ -1571,9 +1571,9 @@ window.addEventListener('popstate', e => {
 });
 
 $('sort-order').addEventListener('change', rerun);
-$('filter-search').addEventListener('input', rerun);
-$('filter-labeler').addEventListener('input', rerun);
-$('filter-reviewer').addEventListener('input', rerun);
+$('filter-search').addEventListener('keydown', e => {
+  if (e.key === 'Enter') rerun();
+});
 $('filter-status').addEventListener('change', rerun);
 $('filter-annotated').addEventListener('change', rerun);
 $('filter-clear-btn').addEventListener('click', () => {
@@ -1619,7 +1619,13 @@ function setupFilterSuggestions(inputId, suggestionsId, field) {
   }
 
   input.addEventListener('focus', () => { counts = buildCountMap(field); renderSuggestions(); });
-  input.addEventListener('input', () => { counts = buildCountMap(field); renderSuggestions(); rerun(); });
+  input.addEventListener('input', () => { counts = buildCountMap(field); renderSuggestions(); });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      box.classList.remove('open');
+      rerun();
+    }
+  });
   input.addEventListener('blur', () => setTimeout(() => box.classList.remove('open'), 150));
 
   box.addEventListener('mousedown', e => {
@@ -3663,8 +3669,6 @@ function updateSelectionBar() {
 
 // Audit directory inline lookup — searches Google Drive via worker
 {
-  let dirTimer = null;
-
   function escDir(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -3701,12 +3705,18 @@ function updateSelectionBar() {
   dirInput.addEventListener('focus', () => { dirInput.style.borderColor = 'var(--amber)'; });
   dirInput.addEventListener('blur',  () => { dirInput.style.borderColor = 'var(--line-2)'; });
   dirInput.addEventListener('input', function() {
-    const q = this.value.trim();
-    clearTimeout(dirTimer);
-    const el = document.getElementById('dir-results');
-    if (!q) { el.innerHTML = ''; return; }
-    el.innerHTML = '<div style="font-size:12px;color:var(--ink-faint);padding:8px 0;">Searching…</div>';
-    dirTimer = setTimeout(() => renderDirResults(q), 400);
+    if (!this.value.trim()) {
+      document.getElementById('dir-results').innerHTML = '';
+    }
+  });
+  dirInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const q = this.value.trim();
+      if (!q) return;
+      document.getElementById('dir-results').innerHTML = '<div style="font-size:12px;color:var(--ink-faint);padding:8px 0;">Searching…</div>';
+      renderDirResults(q);
+    }
   });
 }
 
