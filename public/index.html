@@ -491,6 +491,34 @@
   .audio-speed-slider::-webkit-slider-thumb:hover {
     transform: scale(1.25);
   }
+  /* ===== Labeler Stats Modal ===== */
+  #stats-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:2000; align-items:flex-start; justify-content:center; padding: 40px 16px 40px; overflow-y:auto; }
+  #stats-modal-overlay.open { display:flex; }
+  #stats-modal { background:var(--panel); border:1px solid var(--line-2); width:100%; max-width:920px; padding:32px 36px 36px; position:relative; animation: statsSlideIn 0.18s ease; }
+  @keyframes statsSlideIn { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:none; } }
+  #stats-modal-close { position:absolute; top:18px; right:22px; background:none; border:none; color:var(--ink-dim); font-size:22px; cursor:pointer; line-height:1; padding:4px 8px; }
+  #stats-modal-close:hover { color:var(--ink); }
+  .stats-title { font-family:'Fraunces',serif; font-weight:300; font-size:20px; margin:0 0 4px; }
+  .stats-title em { color:var(--amber); font-style:italic; font-weight:600; }
+  .stats-sub { color:var(--ink-dim); font-size:11px; text-transform:uppercase; letter-spacing:0.14em; margin-bottom:24px; }
+  .stats-table-wrap { overflow-x:auto; }
+  .stats-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .stats-table th { font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:var(--ink-faint); font-weight:500; padding:6px 12px 8px; border-bottom:1px solid var(--line-2); text-align:right; white-space:nowrap; }
+  .stats-table th:first-child { text-align:left; }
+  .stats-table td { padding:9px 12px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; vertical-align:middle; }
+  .stats-table td:first-child { text-align:left; font-weight:500; color:var(--ink); max-width:220px; overflow:hidden; text-overflow:ellipsis; }
+  .stats-table tr:last-child td { border-bottom:none; }
+  .stats-table tr:hover td { background:rgba(255,179,71,0.025); }
+  .stats-table tfoot td { border-top:1px solid var(--line-2); color:var(--ink-dim); font-size:12px; padding-top:10px; font-style:italic; }
+  .stats-bar-bg { display:inline-block; background:var(--line); border-radius:2px; width:70px; height:6px; vertical-align:middle; position:relative; overflow:hidden; margin-left:6px; }
+  .stats-bar-fg { display:block; height:100%; border-radius:2px; background:var(--amber); transition:width 0.3s; }
+  .stats-bar-fg.high { background:var(--red); }
+  .stats-bar-fg.low { background:var(--green); }
+  .stats-dl-btn { margin-top:22px; background:transparent; border:1px solid var(--line-2); color:var(--ink-dim); font-family:inherit; font-size:11px; text-transform:uppercase; letter-spacing:0.14em; padding:8px 16px; cursor:pointer; transition:color 0.15s, border-color 0.15s; }
+  .stats-dl-btn:hover { color:var(--amber); border-color:rgba(255,179,71,0.5); }
+  .stats-scope { font-size:12px; color:var(--ink-dim); margin-bottom:18px; display:flex; gap:16px; align-items:center; }
+  .stats-scope label { display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .stats-scope input[type=radio] { accent-color:var(--amber); }
 </style>
 </head>
 <body>
@@ -579,7 +607,10 @@
       <div class="upload-status" id="upload-status"></div>
     </form>
     <div style="margin-top: 24px; border-top: 1px solid var(--line-2); padding-top: 18px;">
-      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.12em; color:var(--ink-faint); margin-bottom:8px;">Previous Audits</div>
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.12em; color:var(--ink-faint); margin-bottom:8px; display:flex; justify-content:space-between; align-items:baseline;">
+        <span>Previous Audits</span>
+        <a href="https://drive.google.com/drive/folders/1pfVC16frUyNFz084MXv2t1nczAz83i7V" target="_blank" style="color:var(--amber); text-decoration:none;">View Folder</a>
+      </div>
       <input type="text" id="dir-id-input" placeholder="Enter masked ID…" autocomplete="off"
         style="background:var(--bg); border:1px solid var(--line-2); color:var(--ink); font-family:inherit; font-size:14px; padding:10px; outline:none; width:100%; transition:border-color 0.15s;">
       <div id="dir-results"></div>
@@ -603,6 +634,7 @@
         <option value="jetbrains">Font: JetBrains Mono</option>
       </select>
       <a class="meta-link" id="name-btn" style="cursor:pointer;"></a>
+      <a class="meta-link" id="stats-btn" style="cursor:pointer;">Stats</a>
       <a class="meta-link" id="change-snapshots-btn" style="cursor:pointer;">Upload data</a>
       <a class="meta-link" id="share-btn" style="cursor:pointer;">Share</a>
 <a class="meta-link" onclick="document.getElementById('pdf-modal-overlay').classList.add('open')" style="cursor:pointer;">Instructions</a>
@@ -687,6 +719,21 @@
     <div id="drive-toast" class="drive-toast"></div>
 
     <footer>built for atc · client-side processing · <a onclick="document.getElementById('pdf-modal-overlay').classList.add('open')" style="color: inherit; text-decoration: none; cursor: pointer;">instructions</a> · no tracking</footer>
+</div>
+
+<!-- Labeler Stats Modal -->
+<div id="stats-modal-overlay">
+  <div id="stats-modal">
+    <button id="stats-modal-close" title="Close">&times;</button>
+    <div class="stats-title">Labeler <em>stats</em></div>
+    <div class="stats-sub" id="stats-modal-sub">across all loaded data</div>
+    <div class="stats-scope">
+      <label><input type="radio" name="stats-scope" value="all" checked> All rows</label>
+      <label><input type="radio" name="stats-scope" value="reviewed"> Reviewed rows only</label>
+    </div>
+    <div class="stats-table-wrap" id="stats-table-wrap"></div>
+    <button class="stats-dl-btn" id="stats-dl-csv">↓ Download CSV</button>
+  </div>
 </div>
 
 <script type="module">
@@ -3719,6 +3766,158 @@ function updateSelectionBar() {
     }
   });
 }
+
+// ====================== Labeler Stats ======================
+
+function computeLabelerStats(scope) {
+  const source = scope === 'reviewed'
+    ? allDocs.filter(d => d.reviewed)
+    : allDocs;
+
+  const map = new Map(); // annotator -> stats obj
+
+  for (const d of source) {
+    const labeler = d.annotator || '(unknown)';
+    if (!map.has(labeler)) {
+      map.set(labeler, {
+        labeler,
+        total: 0,
+        reviewed: 0,
+        changed: 0,         // pct > 0 (substantive words changed)
+        punctOnly: 0,       // only punctuation changed
+        capOnly: 0,         // only capitalisation changed
+        roleChange: 0,
+        sumPct: 0,
+        reworkSecs: 0,
+        reworkCount: 0,
+      });
+    }
+    const s = map.get(labeler);
+    s.total++;
+    if (d.reviewed) s.reviewed++;
+    if (d.pct > 0) { s.changed++; s.sumPct += d.pct; }
+    if (d.hasPunctChange) s.punctOnly++;
+    if (d.hasCapChange) s.capOnly++;
+    if (d.hasRoleChange) s.roleChange++;
+    // rework seconds (from performance_details_v2 stored on the doc)
+    if (d.secondsRework > 0) { s.reworkSecs += d.secondsRework; s.reworkCount++; }
+  }
+
+  return [...map.values()].sort((a, b) => b.total - a.total);
+}
+
+function renderBar(val, max, pct) {
+  const frac = max > 0 ? Math.min(val / max, 1) : 0;
+  const cls = pct >= 30 ? 'high' : pct <= 5 ? 'low' : '';
+  return `<span class="stats-bar-bg"><span class="stats-bar-fg ${cls}" style="width:${Math.round(frac*100)}%"></span></span>`;
+}
+
+let _statsCSVData = [];
+
+function openStatsModal() {
+  renderStatsModal();
+  document.getElementById('stats-modal-overlay').classList.add('open');
+}
+
+function renderStatsModal() {
+  const scopeEl = document.querySelector('input[name="stats-scope"]:checked');
+  const scope = scopeEl ? scopeEl.value : 'all';
+  const rows = computeLabelerStats(scope);
+  _statsCSVData = rows;
+
+  const total = allDocs.length;
+  const reviewed = allDocs.filter(d => d.reviewed).length;
+  document.getElementById('stats-modal-sub').textContent =
+    `${total.toLocaleString()} recordings total · ${reviewed.toLocaleString()} reviewed (${total ? Math.round(reviewed/total*100) : 0}%)`;
+
+  if (!rows.length) {
+    document.getElementById('stats-table-wrap').innerHTML = '<p style="color:var(--ink-dim);font-size:13px;">No data loaded yet.</p>';
+    return;
+  }
+
+  const maxTotal = Math.max(...rows.map(r => r.total));
+
+  const thead = `<thead><tr>
+    <th>Labeler</th>
+    <th title="Total rows labeled">Rows</th>
+    <th title="Rows that passed through review">Reviewed</th>
+    <th title="Rows where reviewer changed at least one word (substantive)">Changed</th>
+    <th title="Average % of words changed per changed row">Avg Δ%</th>
+    <th title="Rows with only punctuation changes">Punct only</th>
+    <th title="Rows with only capitalisation changes">Cap only</th>
+    <th title="Rows where speaker role was changed">Role Δ</th>
+  </tr></thead>`;
+
+  const tbodyRows = rows.map(r => {
+    const revPct = r.total ? Math.round(r.reviewed / r.total * 100) : 0;
+    const chgPct = r.reviewed ? Math.round(r.changed / r.reviewed * 100) : 0;
+    const avgPct = r.changed ? Math.round(r.sumPct / r.changed) : 0;
+    const bar = renderBar(r.total, maxTotal, chgPct);
+    const chgCol = r.reviewed
+      ? `<span style="color:${chgPct>=30?'var(--red)':chgPct<=5?'var(--green)':'var(--ink)'};">${r.changed} <span style="color:var(--ink-faint);font-size:11px;">(${chgPct}%)</span></span>`
+      : `<span style="color:var(--ink-faint)">—</span>`;
+    const avgCol = avgPct > 0 ? `<span style="color:var(--amber);">${avgPct}%</span>` : '<span style="color:var(--ink-faint)">—</span>';
+    const roleCol = r.roleChange > 0 ? `<span style="color:var(--red);">${r.roleChange}</span>` : '<span style="color:var(--ink-faint)">0</span>';
+    return `<tr>
+      <td title="${escapeAttr(r.labeler)}">${escapeHtml(r.labeler)}${bar}</td>
+      <td>${r.total.toLocaleString()}</td>
+      <td>${r.reviewed.toLocaleString()} <span style="color:var(--ink-faint);font-size:11px;">(${revPct}%)</span></td>
+      <td>${chgCol}</td>
+      <td>${avgCol}</td>
+      <td>${r.punctOnly > 0 ? r.punctOnly : '<span style="color:var(--ink-faint)">0</span>'}</td>
+      <td>${r.capOnly > 0 ? r.capOnly : '<span style="color:var(--ink-faint)">0</span>'}</td>
+      <td>${roleCol}</td>
+    </tr>`;
+  }).join('');
+
+  // Totals footer
+  const totTotal = rows.reduce((a,r)=>a+r.total,0);
+  const totReviewed = rows.reduce((a,r)=>a+r.reviewed,0);
+  const totChanged = rows.reduce((a,r)=>a+r.changed,0);
+  const totPunct = rows.reduce((a,r)=>a+r.punctOnly,0);
+  const totCap = rows.reduce((a,r)=>a+r.capOnly,0);
+  const totRole = rows.reduce((a,r)=>a+r.roleChange,0);
+  const totSumPct = rows.reduce((a,r)=>a+r.sumPct,0);
+  const totAvgPct = totChanged ? Math.round(totSumPct/totChanged) : 0;
+  const tfoot = `<tfoot><tr>
+    <td>Total / avg</td>
+    <td>${totTotal.toLocaleString()}</td>
+    <td>${totReviewed.toLocaleString()}</td>
+    <td>${totChanged.toLocaleString()}</td>
+    <td>${totAvgPct > 0 ? totAvgPct+'%' : '—'}</td>
+    <td>${totPunct}</td>
+    <td>${totCap}</td>
+    <td>${totRole}</td>
+  </tr></tfoot>`;
+
+  document.getElementById('stats-table-wrap').innerHTML =
+    `<table class="stats-table">${thead}<tbody>${tbodyRows}</tbody>${tfoot}</table>`;
+}
+
+function downloadStatsCSV() {
+  if (!_statsCSVData.length) return;
+  const header = ['Labeler','Rows','Reviewed','Reviewed%','Changed','Changed%','AvgWordChangePct','PunctOnly','CapOnly','RoleChanges'];
+  const csvRows = _statsCSVData.map(r => {
+    const revPct = r.total ? Math.round(r.reviewed/r.total*100) : 0;
+    const chgPct = r.reviewed ? Math.round(r.changed/r.reviewed*100) : 0;
+    const avgPct = r.changed ? Math.round(r.sumPct/r.changed) : 0;
+    return [r.labeler, r.total, r.reviewed, revPct, r.changed, chgPct, avgPct, r.punctOnly, r.capOnly, r.roleChange].join(',');
+  });
+  const blob = new Blob([[header.join(','), ...csvRows].join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'labeler_stats.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Wire up stats modal
+$('stats-btn').addEventListener('click', openStatsModal);
+$('stats-modal-close').addEventListener('click', () => document.getElementById('stats-modal-overlay').classList.remove('open'));
+document.getElementById('stats-modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('stats-modal-overlay')) document.getElementById('stats-modal-overlay').classList.remove('open');
+});
+$('stats-dl-csv').addEventListener('click', downloadStatsCSV);
+document.querySelectorAll('input[name="stats-scope"]').forEach(el => el.addEventListener('change', renderStatsModal));
 
 // Font Preference Selector
 const fontSelect = document.getElementById('font-family-select');
